@@ -1,43 +1,43 @@
 # AthleteLink Gateway
 
-The Gateway is the public entry point to AthleteLink services. It carries
-trusted caller identity and request correlation across service boundaries.
+Gateway — публичная точка входа в сервисы AthleteLink. Он передаёт доверенные
+данные о вызывающем пользователе и обеспечивает сопоставление запросов между сервисами.
 
-## Language
+## Термины
 
-**API Gateway**:
+**API Gateway (шлюз API)**:
 
-The public entry point that authenticates callers and forwards requests to
-internal services. It owns neither business data nor business authorization.
+Публичная точка входа, которая аутентифицирует вызывающую сторону и пересылает
+запросы внутренним сервисам. Не владеет ни бизнес-данными, ни бизнес-авторизацией.
 
-**Upstream service**:
+**Upstream service (целевой сервис)**:
 
-An internal service reached through the Gateway, such as Core Service or Auth
-Service. Game Service is a planned upstream service.
+Внутренний сервис, доступный через Gateway, например Core Service или Auth
+Service. Game Service — планируемый целевой сервис.
 
-**Auth Service**:
+**Auth Service (сервис аутентификации)**:
 
-The service that issues access and refresh tokens and owns their lifecycle.
+Сервис, который выдаёт токены доступа и обновления и управляет их жизненным циклом.
 
-**Core Service**:
+**Core Service (основной сервис)**:
 
-The service that owns sports and game-request operations.
+Сервис, который отвечает за виды спорта и операции с заявками на игры.
 
-**Game Service**:
+**Game Service (игровой сервис)**:
 
-A planned upstream service whose responsibilities are still being defined.
+Планируемый целевой сервис, обязанности которого ещё определяются.
 
-**Trusted identity**:
+**Trusted identity (доверенная идентичность)**:
 
-The user identity derived from a verified access token and conveyed by the
-Gateway to an upstream service. A client-supplied identity is not trusted.
+Данные о пользователе, полученные из проверенного токена доступа и переданные
+Gateway целевому сервису. Идентичность, указанная клиентом, не считается доверенной.
 
-**Business authorization**:
+**Business authorization (бизнес-авторизация)**:
 
-Permission checks involving domain objects, such as whether a user may cancel a
-request, belong to the upstream service that owns those objects.
+Проверки прав на объекты предметной области, например права пользователя отменить
+заявку, выполняет целевой сервис, которому принадлежат эти объекты.
 
-**Request ID**:
+**Request ID (идентификатор запроса)**:
 
-A unique identifier assigned to an inbound request and propagated to upstream
-services for log correlation.
+Уникальный идентификатор, назначаемый входящему запросу и передаваемый целевым
+сервисам для сопоставления записей в журналах.

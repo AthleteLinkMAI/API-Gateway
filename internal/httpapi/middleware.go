@@ -214,6 +214,7 @@ func withAPIPreflight(next http.Handler, origins []string) http.Handler {
 		originAllowed = originAllowed || isLocalhostOrigin(origin)
 		if originAllowed {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		}
 
 		if r.Method != http.MethodOptions || origin == "" || method == "" {

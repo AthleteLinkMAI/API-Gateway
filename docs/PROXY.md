@@ -1,201 +1,224 @@
-# HTTP proxy boundary
+# Граница HTTP-прокси
 
-Status: Core, Auth, and Game HTTP proxy behavior is implemented in the current
-source tree and covered by component tests. Real-service integration remains
-unverified. The Gateway exposes one HTTP listener and owns `/healthz`,
-`/readyz`, `/openapi.yaml`, and `/swagger/`. See [integration status](INTEGRATION.md).
+Статус: поведение HTTP-прокси Core, Auth и Game реализовано в текущем дереве
+исходников и покрыто компонентными тестами. Интеграция с реальными сервисами
+остаётся непроверенной. Gateway предоставляет один HTTP-слушатель и отвечает за
+`/healthz`, `/readyz`, `/openapi.yaml` и `/swagger/`.
+См. [статус интеграции](INTEGRATION.md).
 
-The frontend calls the Gateway over HTTP; the Gateway calls the upstream services
-over HTTP. The [Core](contracts/core-service-openapi.yaml),
-[Auth](contracts/auth-service-openapi.yaml), and
-[Game](contracts/game-service-openapi.yaml) OpenAPI snapshots describe service
-operations and payloads. This document defines Gateway behavior at their boundary.
+Фронтенд обращается к Gateway по HTTP; Gateway обращается к целевым сервисам
+по HTTP. Снимки OpenAPI [Core](contracts/core-service-openapi.yaml),
+[Auth](contracts/auth-service-openapi.yaml) и [Game](contracts/game-service-openapi.yaml)
+описывают операции сервисов и полезную нагрузку. Этот документ определяет
+поведение Gateway на границе с ними.
 
-## Routing and HTTP behavior
+<a id="routing-and-http-behavior"></a>
 
-- Core, Auth and Game expose only the method/path pairs in
-  `internal/httpapi/routes.go`, listed below. Core no longer forwards arbitrary
-  descendants or methods under `/api/v1/requests/`; new operations require a
-  route-table and snapshot update. Unprefixed routes are not aliases.
-- Public and upstream paths include `/api/v1`. `{...}` matches one nonempty
-  path segment, not an encoded slash or a dot segment. Auth current-user aliases
-  append the verified JWT subject when forwarding. `GET /health` in the Auth
-  snapshot is not a public Gateway route. Core's snapshot still uses unprefixed
-  paths, so acceptance of `/api/v1` by a running Core build remains unverified.
+## Маршрутизация и поведение HTTP
 
-| Service | Method | Path | Access JWT |
+- Core, Auth и Game предоставляют только пары метода и пути из
+  `internal/httpapi/routes.go`, перечисленные ниже. Core больше не пересылает
+  произвольные вложенные пути или методы внутри `/api/v1/requests/`; новые
+  операции требуют обновления таблицы маршрутов и снимка. Пути без префикса
+  не являются псевдонимами.
+- Публичные пути и пути целевых сервисов включают `/api/v1`. `{...}` соответствует
+  одному непустому сегменту пути, а не закодированной косой черте или сегменту
+  `.` либо `..`. Псевдонимы Auth для текущего пользователя добавляют субъект
+  проверенного JWT при пересылке. `GET /health` из снимка Auth не является
+  публичным маршрутом Gateway. Снимок Core всё ещё использует пути без префикса,
+  поэтому поддержка `/api/v1` работающей сборкой Core остаётся непроверенной.
+
+| Сервис | Метод | Путь | JWT доступа |
 |---|---|---|---|
-| Core | GET | `/api/v1/requests/{id}` | Required |
-| Core | PUT | `/api/v1/requests/{id}` | Required |
-| Core | GET | `/api/v1/requests` | Required |
-| Core | POST | `/api/v1/requests` | Required |
-| Core | POST | `/api/v1/requests/{requestId}/rounds/{roundNumber}/result` | Required |
-| Core | POST | `/api/v1/requests/{requestId}/complete` | Required |
-| Core | POST | `/api/v1/requests/{id}/start` | Required |
-| Core | POST | `/api/v1/requests/{id}/registration/open` | Required |
-| Core | POST | `/api/v1/requests/{id}/registration/close` | Required |
-| Core | POST | `/api/v1/requests/{id}/leave` | Required |
-| Core | POST | `/api/v1/requests/{id}/kick/{targetUserId}` | Required |
-| Core | POST | `/api/v1/requests/{id}/join` | Required |
-| Core | POST | `/api/v1/requests/{id}/cancel` | Required |
-| Core | GET | `/api/v1/sports` | Required |
-| Core | GET | `/api/v1/requests/{requestId}/rounds` | Required |
-| Auth | PUT | `/api/v1/user/update-user` | Required; upstream userId is the verified `sub` |
-| Auth | PUT | `/api/v1/user/change-password` | Required; upstream userId is the verified `sub` |
-| Auth | PUT | `/api/v1/user/change-email` | Required; upstream userId is the verified `sub` |
-| Auth | POST | `/api/v1/verification/verify-password-reset` | Not required |
-| Auth | POST | `/api/v1/verification/verify-email` | Required; upstream userId is the verified `sub` |
-| Auth | POST | `/api/v1/verification/send-password-reset-code` | Not required |
-| Auth | POST | `/api/v1/verification/send-email-verification-code` | Required; upstream userId is the verified `sub` |
-| Auth | POST | `/api/v1/user/register` | Not required |
-| Auth | GET | `/api/v1/user/me` | Required; upstream userId is the verified `sub` |
-| Auth | POST | `/api/v1/auth/refresh` | Not required |
-| Auth | POST | `/api/v1/auth/login` | Not required |
-| Auth | GET | `/api/v1/session/get-all/{userId}` | Required; `{userId}` must match `sub` |
-| Auth | DELETE | `/api/v1/user/delete` | Required; upstream userId is the verified `sub` |
-| Auth | DELETE | `/api/v1/session/terminate/{userId}` | Required; `{userId}` must match `sub` |
-| Auth | DELETE | `/api/v1/session/terminate-all/{userId}` | Required; `{userId}` must match `sub` |
-| Auth | DELETE | `/api/v1/auth/logout` | Required |
-| Game | GET | `/api/v1/results/by-request/{activityRequestId}` | Required |
-| Game | GET | `/api/v1/rank-tiers` | Required |
-| Game | GET | `/api/v1/players/{userId}` | Required |
-| Game | GET | `/api/v1/players` | Required; upstream userId is the verified `sub` |
-| Game | GET | `/api/v1/players/` | Required; same behavior, without a redirect |
-| Game | GET | `/api/v1/players/{userId}/sports/{sportId}` | Required |
-| Game | GET | `/api/v1/players/{userId}/matches` | Required |
-| Game | GET | `/api/v1/leaderboards/{sportId}` | Required |
+| Core | GET | `/api/v1/requests/{id}` | Требуется |
+| Core | PUT | `/api/v1/requests/{id}` | Требуется |
+| Core | GET | `/api/v1/requests` | Требуется |
+| Core | POST | `/api/v1/requests` | Требуется |
+| Core | POST | `/api/v1/requests/{requestId}/rounds/{roundNumber}/result` | Требуется |
+| Core | POST | `/api/v1/requests/{requestId}/complete` | Требуется |
+| Core | POST | `/api/v1/requests/{id}/start` | Требуется |
+| Core | POST | `/api/v1/requests/{id}/registration/open` | Требуется |
+| Core | POST | `/api/v1/requests/{id}/registration/close` | Требуется |
+| Core | POST | `/api/v1/requests/{id}/leave` | Требуется |
+| Core | POST | `/api/v1/requests/{id}/kick/{targetUserId}` | Требуется |
+| Core | POST | `/api/v1/requests/{id}/join` | Требуется |
+| Core | POST | `/api/v1/requests/{id}/cancel` | Требуется |
+| Core | GET | `/api/v1/sports` | Требуется |
+| Core | GET | `/api/v1/requests/{requestId}/rounds` | Требуется |
+| Auth | PUT | `/api/v1/user/update-user` | Требуется; userId целевого сервиса — проверенный `sub` |
+| Auth | PUT | `/api/v1/user/change-password` | Требуется; userId целевого сервиса — проверенный `sub` |
+| Auth | PUT | `/api/v1/user/change-email` | Требуется; userId целевого сервиса — проверенный `sub` |
+| Auth | POST | `/api/v1/verification/verify-password-reset` | Не требуется |
+| Auth | POST | `/api/v1/verification/verify-email` | Требуется; userId целевого сервиса — проверенный `sub` |
+| Auth | POST | `/api/v1/verification/send-password-reset-code` | Не требуется |
+| Auth | POST | `/api/v1/verification/send-email-verification-code` | Требуется; userId целевого сервиса — проверенный `sub` |
+| Auth | POST | `/api/v1/user/register` | Не требуется |
+| Auth | GET | `/api/v1/user/me` | Требуется; userId целевого сервиса — проверенный `sub` |
+| Auth | POST | `/api/v1/auth/refresh` | Не требуется |
+| Auth | POST | `/api/v1/auth/login` | Не требуется |
+| Auth | GET | `/api/v1/session/get-all/{userId}` | Требуется; `{userId}` должен совпадать с `sub` |
+| Auth | DELETE | `/api/v1/user/delete` | Требуется; userId целевого сервиса — проверенный `sub` |
+| Auth | DELETE | `/api/v1/session/terminate/{userId}` | Требуется; `{userId}` должен совпадать с `sub` |
+| Auth | DELETE | `/api/v1/session/terminate-all/{userId}` | Требуется; `{userId}` должен совпадать с `sub` |
+| Auth | DELETE | `/api/v1/auth/logout` | Требуется |
+| Game | GET | `/api/v1/results/by-request/{activityRequestId}` | Требуется |
+| Game | GET | `/api/v1/rank-tiers` | Требуется |
+| Game | GET | `/api/v1/players/{userId}` | Требуется |
+| Game | GET | `/api/v1/players` | Требуется; userId целевого сервиса — проверенный `sub` |
+| Game | GET | `/api/v1/players/` | Требуется; то же поведение, без перенаправления |
+| Game | GET | `/api/v1/players/{userId}/sports/{sportId}` | Требуется |
+| Game | GET | `/api/v1/players/{userId}/matches` | Требуется |
+| Game | GET | `/api/v1/leaderboards/{sportId}` | Требуется |
 
-- Unknown API paths return 404; a known path with another method returns
-  405 with `Allow` listing all declared methods for that path. No implicit
-  `HEAD` or ordinary `OPTIONS` operation is added. CORS preflight remains available.
-- Preserve method, escaped path, raw query, and body on explicit-ID routes.
-  Do not decode or reserialize upstream DTOs or repeat business validation.
-- `GET /api/v1/players` and `/api/v1/players/` forward to Game as
-  `/api/v1/players/{sub}`. Explicit player IDs remain unchanged and may identify
-  another user. The six ID-less Auth user/verification mutations above forward to
-  the same path plus `/{sub}`. Client identity headers and query parameters cannot
-  choose that ID; queries and bodies are preserved.
-- `GET /api/v1/user/me` forwards to Auth as `/api/v1/user/me/{sub}` using
-  only the verified JWT subject. Caller identity headers/query cannot select
-  the user. `/api/v1/user/me/{userId}`, `/api/v1/user/me/` and old ID-bearing
-  forms of the six user/verification aliases return 404. The Auth response is
-  passed through unchanged.
-- The source-reviewed Auth `me` operation currently returns an empty
-  `UserControllerDto`; its mapper does not transfer the existing service fields.
-  Completing Auth's response is owned by the user. Gateway passes the upstream
-  response through; it does not synthesize username, email, or verification data.
-- Return upstream status, body, and ordinary end-to-end response headers, including
-  business-error bodies and unexpected success statuses. Standard hop-by-hop
-  headers are excluded. The Gateway controls `X-Request-Id` and CORS response
-  headers and does not let upstreams replace them.
-- Do not follow upstream redirects or automatically retry forwarded requests.
-  No additional Gateway request-body limit is part of this migration.
-- Keep `/healthz` and `/readyz` as Gateway-owned HTTP endpoints. The public
-  `/openapi.yaml` and `/swagger/` routes serve the draft contract and bundled
-  Swagger UI without calling an upstream. There is no generic fallback upstream.
+- Неизвестные пути API возвращают 404; известный путь с другим методом — 405
+  с `Allow`, перечисляющим все объявленные для него методы. Неявные операции
+  `HEAD` и обычные `OPTIONS` не добавляются. CORS preflight остаётся доступным.
+- Для маршрутов с явным ID сохраняйте метод, экранированный путь, исходную
+  строку запроса и тело. Не декодируйте и не сериализуйте заново DTO целевых
+  сервисов и не повторяйте бизнес-валидацию.
+- `GET /api/v1/players` и `/api/v1/players/` пересылаются в Game как
+  `/api/v1/players/{sub}`. Явные ID игроков сохраняются и могут указывать
+  на другого пользователя. Шесть перечисленных выше операций изменения
+  пользователя и верификации Auth без ID пересылаются по тому же пути
+  с добавлением `/{sub}`. Клиентские заголовки идентичности и параметры запроса
+  не могут выбрать этот ID; строки запроса и тела сохраняются.
+- `GET /api/v1/user/me` пересылается в Auth как `/api/v1/user/me/{sub}` только
+  по субъекту проверенного JWT. Заголовки идентичности и параметры запроса
+  вызывающей стороны не могут выбрать пользователя. `/api/v1/user/me/{userId}`,
+  `/api/v1/user/me/` и старые формы шести псевдонимов пользователя и верификации
+  с ID возвращают 404. Ответ Auth передаётся без изменений.
+- Проверенная по исходникам операция Auth `me` сейчас возвращает пустой
+  `UserControllerDto`; её маппер не переносит существующие поля сервиса.
+  Дополнение ответа Auth остаётся задачей пользователя. Gateway передаёт ответ
+  целевого сервиса и не создаёт username, email или данные верификации самостоятельно.
+- Возвращайте статус, тело и обычные сквозные заголовки ответа целевого сервиса,
+  включая тела бизнес-ошибок и неожиданные успешные статусы. Стандартные
+  заголовки отдельных соединений (hop-by-hop) исключаются. Gateway управляет
+  `X-Request-Id` и заголовками ответа CORS и не позволяет сервисам заменять их.
+- Не следуйте перенаправлениям целевого сервиса и не повторяйте пересылаемые
+  запросы автоматически. Дополнительный лимит тела запроса Gateway не входит
+  в эту миграцию.
+- Сохраняйте `/healthz` и `/readyz` как собственные HTTP-маршруты Gateway.
+  Публичные `/openapi.yaml` и `/swagger/` отдают черновой контракт и встроенный
+  Swagger UI без вызова целевого сервиса. Общего резервного целевого сервиса нет.
 
-## Authentication and trusted headers
+## Аутентификация и доверенные заголовки
 
-- Require one `Authorization: Bearer <access JWT>` for every Core and Game
-  request and the protected Auth operations listed above. Check the established
-  Auth signing, claim, expiry, and Redis denylist rules before forwarding.
-  Public Auth operations, health, readiness, and CORS preflight do not require
-  a JWT. A protected Auth `{userId}` that differs from the verified `sub`
-  returns 403 before calling Auth; Game player paths retain the requested
-  `{userId}` independently of the caller's identity.
-- Generate a fresh UUID request ID at the Gateway, replacing a client value.
-  Send it to the selected upstream and the client as `X-Request-Id`, even on
-  Gateway-generated errors. Do not allow an upstream response to replace it.
-- Remove client `Authorization`, `Cookie`, `X-User-Id`, `X-Request-Id`, and
-  untrusted forwarding headers before the Core call. Preserve other ordinary
-  end-to-end request headers. Send the verified user UUID as `X-User-Id` on
-  every proxied Core request and the new `X-Request-Id` once.
-- Auth retains client `Cookie` and forwards upstream `Set-Cookie` without creating
-  a Gateway cookie. Public Auth operations discard client `Authorization`;
-  protected Auth operations forward only the verified Bearer token and trusted
-  `X-User-Id`. Game receives trusted `X-User-Id`, but no client Bearer token,
-  cookie, or identity/forwarding headers.
-- Keep the agreed Redis behavior: a confirmed denylist hit rejects the token;
-  connection failure or lookup timeout permits an otherwise valid JWT to
-  continue; command/configuration and unclassified lookup errors reject the
-  request without calling Core. The process may start without Redis, while
-  `/readyz` remains unavailable until Redis responds.
+- Требуйте один `Authorization: Bearer <access JWT>` для каждого запроса Core
+  и Game и перечисленных выше защищённых операций Auth. Перед пересылкой
+  проверяйте согласованные правила подписи Auth, полей JWT, срока действия
+  и списка отозванных токенов Redis. Публичные операции Auth, проверки
+  работоспособности, готовности и CORS preflight не требуют JWT.
+  Защищённый `{userId}` Auth, не совпадающий с проверенным `sub`, возвращает 403
+  до вызова Auth; пути игроков Game сохраняют запрошенный `{userId}` независимо
+  от идентичности вызывающей стороны.
+- Генерируйте новый UUID запроса в Gateway вместо клиентского значения.
+  Передавайте его выбранному сервису и клиенту как `X-Request-Id`, в том числе
+  при собственных ошибках Gateway. Не позволяйте ответу сервиса заменять его.
+- Перед вызовом Core удаляйте клиентские `Authorization`, `Cookie`, `X-User-Id`,
+  `X-Request-Id` и недоверенные заголовки пересылки. Сохраняйте остальные обычные
+  сквозные заголовки запроса. Передавайте проверенный UUID пользователя как
+  `X-User-Id` в каждом проксируемом запросе Core и новый `X-Request-Id` ровно один раз.
+- Auth сохраняет клиентский `Cookie` и передаёт `Set-Cookie` целевого сервиса,
+  не создавая cookie Gateway. Публичные операции Auth удаляют клиентский
+  `Authorization`; защищённые передают только проверенный Bearer-токен
+  и доверенный `X-User-Id`. Game получает доверенный `X-User-Id`, но не клиентские
+  Bearer-токен, cookie, заголовки идентичности или пересылки.
+- Сохраняйте согласованное поведение Redis: подтверждённое наличие токена
+  в списке отозванных приводит к отказу; ошибка соединения или тайм-аут поиска
+  позволяют продолжить с JWT, действительным по остальным проверкам.
+  Ошибки команд, конфигурации и неклассифицированные ошибки поиска приводят
+  к отказу без вызова Core. Процесс может запуститься без Redis, но `/readyz`
+  остаётся недоступным, пока Redis не ответит.
 
-## Browser and Gateway failures
+## Доступ из браузера и ошибки Gateway
 
-- HTTP/HTTPS origins with the exact hostname `localhost` (case-insensitive)
-  are automatically permitted for all three services, with no port or a port
-  from 1 through 65535. This works without `GATEWAY_CORS_ORIGINS`; the setting
-  adds other exact origins. Localhost origins with credentials, a path, query,
-  fragment or opaque URL are rejected. Numeric loopback addresses (`127.0.0.1`,
-  `::1`), subdomains and lookalikes are not automatically permitted.
-  Allowed responses echo the exact Origin and retain `Vary: Origin`.
-  Handle CORS preflight on known routes before authentication; API
-  preflight accepts only a declared method. Allow the `Authorization` header
-  but do not enable credentialed CORS. The planned refresh-cookie browser flow
-  therefore requires the frontend and Gateway to share an origin. Exact
-  deployment origins are still needed.
-- Gateway-generated failures have an HTTP status and `X-Request-Id`, but no
-  prescribed response-body schema: 401 for missing/invalid access JWT, 503 for
-  a fail-closed Redis lookup, 403 for Auth own-user mismatch, 404 for an
-  unknown route, 405 with `Allow` for a known API path with the wrong
-  method, 502 for an upstream connection failure, and 504 for an upstream
-  timeout. Upstream responses pass through without reinterpretation.
+- HTTP/HTTPS-источники с точным именем хоста `localhost` (без учёта регистра)
+  автоматически разрешены для всех трёх сервисов без порта или с портом
+  от 1 до 65535. Это работает без `GATEWAY_CORS_ORIGINS`; настройка добавляет
+  другие точные источники. Источники localhost с учётными данными в URL,
+  путём, строкой запроса, фрагментом или непрозрачным URL отклоняются.
+  Числовые адреса петлевого интерфейса (`127.0.0.1`, `::1`), поддомены и похожие
+  имена автоматически не разрешаются. Разрешённые ответы повторяют точный
+  Origin и сохраняют `Vary: Origin`. Обрабатывайте CORS preflight для известных
+  маршрутов до аутентификации; preflight API принимает только объявленный
+  метод. Разрешайте заголовок `Authorization` и CORS с передачей учётных данных
+  для разрешённых источников на всех известных маршрутах Auth, Core и Game:
+  `Access-Control-Allow-Credentials: true` выдаётся в preflight, обычных ответах
+  и ошибках этих маршрутов. Для запрещённого или отсутствующего Origin
+  разрешающие заголовки не выдаются; `Access-Control-Allow-Origin: *` не используется.
+  Браузерный клиент включает `credentials: "include"` в Fetch или
+  `withCredentials: true` в Axios. Gateway передаёт cookie Auth без изменения;
+  их атрибуты и CSRF остаются ответственностью Auth. Точные источники развёртывания
+  ещё нужно предоставить.
+- Собственные ошибки Gateway имеют HTTP-статус и `X-Request-Id`, но не имеют
+  обязательной схемы тела ответа: 401 при отсутствии или недействительности
+  JWT доступа, 503 при отказе из-за ошибки поиска в Redis, 403 при несовпадении
+  собственного пользователя Auth, 404 для неизвестного маршрута, 405 с `Allow`
+  для известного пути API с неверным методом, 502 при ошибке соединения с целевым
+  сервисом и 504 при тайм-ауте сервиса. Ответы сервисов передаются без переосмысления.
 
-## Readiness
+## Готовность
 
-- `GATEWAY_CORE_URL`, `GATEWAY_AUTH_URL`, and `GATEWAY_GAME_URL` are required
-  HTTP(S) origins. Each upstream has its own timeout, shorter than the Gateway
-  write timeout.
-- `GATEWAY_CORE_HEALTH_URL`, `GATEWAY_AUTH_HEALTH_URL`, and
-  `GATEWAY_GAME_HEALTH_URL` are required full HTTP(S) URLs. `/readyz` returns
-  200 only while the listener is ready, Redis PING succeeds, and each health
-  URL returns HTTP 200. A redirect or any other status yields 503. All checks
-  share one configurable timeout (`GATEWAY_HEALTH_TIMEOUT`, default `2s`).
-- Startup does not wait for Redis or upstream health. `/healthz` reports the
-  Gateway process independently of `/readyz`.
+- `GATEWAY_CORE_URL`, `GATEWAY_AUTH_URL` и `GATEWAY_GAME_URL` — обязательные
+  HTTP(S)-источники. У каждого целевого сервиса свой тайм-аут, меньший тайм-аута
+  записи Gateway.
+- `GATEWAY_CORE_HEALTH_URL`, `GATEWAY_AUTH_HEALTH_URL` и
+  `GATEWAY_GAME_HEALTH_URL` — обязательные полные HTTP(S)-URL. `/readyz`
+  возвращает 200 только когда слушатель готов, Redis PING успешен и каждый URL
+  проверки работоспособности возвращает HTTP 200. Перенаправление или любой
+  другой статус дают 503. Все проверки используют один настраиваемый тайм-аут
+  (`GATEWAY_HEALTH_TIMEOUT`, по умолчанию `2s`).
+- Запуск не ждёт Redis или готовности целевых сервисов. `/healthz` сообщает
+  о состоянии процесса Gateway независимо от `/readyz`.
 
-## Request logging
+<a id="request-logging"></a>
 
-`internal/requestcontext/diagnostics.go` holds one in-memory accumulator per
-HTTP request, shared through `context`. Authentication, readiness and proxy code
-record their results there; the outer logging middleware takes a snapshot when
-the request ends and writes one JSON event. A mutex protects updates and the
-snapshot. Diagnostics is not a persistent store or a public endpoint. It holds
-only the fields listed below, not credentials or request/response bodies.
+## Журналирование запросов
 
-- `GATEWAY_LOG_LEVEL` controls the existing JSON slog handler; default is `info`.
-  API requests produce one `http_request_completed` record with `service`,
-  `request_id`, standard HTTP `method`, route template, selected `upstream`,
-  `upstream_called`, `upstream_status`, final `status`, `duration_ms`,
-  `response_bytes`, `auth_result`, and `denylist_result`. A verified successful
-  identity adds `user_id`; failures add a classified `error_kind`, and failed
-  readiness checks add `dependency`.
-- All declared API paths use their route templates; unknown paths use
-  `unmatched`. Logs exclude raw paths,
-  queries, tokens, token IDs, cookies, bodies, email, IP addresses and raw
-  dependency-error text. Unknown HTTP methods are logged as `OTHER`.
-- Normal API responses use INFO, 4xx use WARN, 5xx use ERROR. A Redis outage
-  uses WARN even when a valid JWT is allowed through; the record has
-  `auth_result=allowed_without_denylist` and `denylist_result=unavailable`.
-  Successful health/readiness/documentation/preflight requests use DEBUG.
-  Client cancellation uses INFO. `status=0` means no final response status was
-  observed for an ended or aborted request; it does not imply success.
-- Logout records only `logout_refresh_cookie_present` for the expected
-  `jwtRefreshToken` cookie. An Auth HTTP 204 is not proof of a Redis write or
-  token revocation. Startup records contain safe upstream origins and Redis
-  address/database, never password or signing secret. Normal server lifecycle
-  events use INFO.
+`internal/requestcontext/diagnostics.go` хранит один накопитель в памяти на
+HTTP-запрос, общий через `context`. Код аутентификации, готовности и прокси
+записывает туда результаты; внешнее middleware журналирования снимает состояние
+после завершения запроса и записывает одно JSON-событие. Мьютекс защищает
+обновления и снимок. Диагностика не является постоянным хранилищем или публичным
+маршрутом. Она содержит только перечисленные ниже поля, без учётных данных
+и тел запросов или ответов.
 
-## Implementation and release checks
+- `GATEWAY_LOG_LEVEL` управляет существующим JSON-обработчиком slog;
+  по умолчанию используется `info`. Запросы API создают одну запись
+  `http_request_completed` с `service`, `request_id`, стандартным HTTP `method`,
+  шаблоном маршрута, выбранным `upstream`, `upstream_called`, `upstream_status`,
+  итоговым `status`, `duration_ms`, `response_bytes`, `auth_result`
+  и `denylist_result`. Успешно проверенная идентичность добавляет `user_id`;
+  ошибки добавляют классифицированный `error_kind`, а неудачные проверки
+  готовности — `dependency`.
+- Все объявленные пути API используют шаблоны маршрутов; неизвестные пути —
+  `unmatched`. Журналы исключают исходные пути, строки запроса, токены,
+  идентификаторы токенов, cookie, тела, email, IP-адреса и исходный текст ошибок
+  зависимостей. Неизвестные HTTP-методы записываются как `OTHER`.
+- Обычные ответы API используют INFO, 4xx — WARN, 5xx — ERROR. Недоступность
+  Redis использует WARN даже при пропуске действительного JWT; запись содержит
+  `auth_result=allowed_without_denylist` и `denylist_result=unavailable`.
+  Успешные запросы работоспособности, готовности, документации и preflight
+  используют DEBUG. Отмена клиентом использует INFO. `status=0` означает,
+  что итоговый статус ответа не был замечен для завершившегося или прерванного
+  запроса; это не означает успех.
+- Выход записывает только `logout_refresh_cookie_present` для ожидаемого cookie
+  `jwtRefreshToken`. HTTP 204 от Auth не доказывает запись в Redis или отзыв
+  токена. Записи запуска содержат безопасные источники сервисов и адрес и номер
+  базы Redis, но не пароль или секрет подписи. Обычные события жизненного цикла
+  сервера используют INFO.
 
-The HTTP listener wires Core, Auth, and Game proxies, JWT and request-ID
-middleware, CORS handling, and the composite readiness check. Component tests
-cover the declared routes and transport behavior. The former gRPC listener,
-adapter, protobuf artifacts, and dependencies are absent from the source tree.
+## Реализация и проверки перед выпуском
 
-Before release, verify behavior with running Auth/Redis, Core, and Game; obtain
-their supported build versions and actual health URLs; configure exact frontend
-origins; establish public HTTPS; and prevent direct untrusted access to
-upstreams that trust `X-User-Id`. Real-service compatibility and deployment
-protections: **I cannot verify this** from this repository alone.
+HTTP-слушатель объединяет прокси Core, Auth и Game, middleware JWT и ID запроса,
+обработку CORS и составную проверку готовности. Компонентные тесты покрывают
+объявленные маршруты и транспортное поведение. Прежние слушатель gRPC, адаптер,
+артефакты protobuf и зависимости отсутствуют в дереве исходников.
+
+Перед выпуском проверьте поведение с работающими Auth/Redis, Core и Game;
+получите версии их поддерживаемых сборок и фактические URL проверок
+работоспособности; настройте точные источники фронтенда; обеспечьте публичный
+HTTPS и исключите прямой недоверенный доступ к сервисам, доверяющим `X-User-Id`.
+Совместимость с реальными сервисами и защиту развёртывания
+**я не могу проверить (I cannot verify this)** только по этому репозиторию.

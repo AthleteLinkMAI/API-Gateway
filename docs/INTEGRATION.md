@@ -1,381 +1,446 @@
-# Integration status and open decisions
+# Статус интеграции и открытые вопросы
 
-Last updated: 2026-10-02.
+Последнее обновление: 2026-10-09.
 
-## 2026-10-02 current-user route and localhost CORS
+## 2026-10-09: CORS с передачей учётных данных
 
-- Source: the user's approved implementation plan in this chat on 2026-10-02.
-  Only the `/me` route and localhost CORS are included. Core-header diagnostics,
-  body adaptation and Java changes were explicitly withdrawn from the task.
-- Public `GET /api/v1/user/me` requires JWT and forwards to Auth's
-  `/api/v1/user/me/{sub}` through the existing current-user middleware.
-  Client identity headers/query cannot choose the ID; Auth's response is preserved.
-  The old public ID-bearing route and the trailing-slash form return 404.
-- CORS permits exact `localhost` hostnames (case-insensitive) for HTTP/HTTPS,
-  without a port or with any port in 1..65535, even with no configured origins.
-  The explicit `GATEWAY_CORS_ORIGINS` allow-list remains additive. Origins with
-  credentials/path/query/fragment/opaque URLs and localhost lookalikes are rejected;
-  numeric loopback addresses are not automatically permitted. Preflight checks
-  declared methods before JWT; response Origin/Vary and no-credentials rules remain.
-- The existing generator maps the upstream `me` path to the new public alias,
-  retaining `operationId: me`, Bearer security and Auth's response schema.
-  The upstream Auth snapshot remains unchanged; Gateway YAML and standalone
-  Swagger are regenerated. The known errcheck blocker remains untouched.
-- Local verification on 2026-10-02: `go test ./...`, `go test -race ./...`
-  and `go vet ./...` passed; the HTTP package passed `-race` again after the
-  Origin helper refactor. Both generators passed `--check`. A Ruby check parsed
-  YAML and embedded HTML JSON and verified the public path, removed userId,
-  Bearer security, operation ID and unchanged upstream response schema.
-  `golangci-lint run` reports only the retained `documentation.go:22` errcheck.
+- По одобренному пользователем плану Gateway разрешает credentialed CORS на всех
+  известных маршрутах Auth, Core и Game для уже разрешённых источников:
+  HTTP/HTTPS localhost и точного списка `GATEWAY_CORS_ORIGINS`.
+- Preflight, обычные ответы и ошибки известных маршрутов возвращают точный
+  `Access-Control-Allow-Origin` и `Access-Control-Allow-Credentials: true`.
+  Запросы без Origin и с запрещённым Origin не получают разрешающие заголовки.
+  `Vary: Origin`, ограничения методов и заголовков, preflight до JWT сохраняются.
+- Gateway остаётся владельцем CORS: заголовки `Access-Control-*` целевого сервиса
+  удаляются. Передача cookie Auth и `Set-Cookie` сохраняется; атрибуты cookie
+  и CSRF принадлежат Auth. Новые переменные окружения и маршруты не добавляются.
+- Это решение заменяет прежний запрет credentialed CORS и требование общего
+  источника фронтенда и Gateway. Реальный сценарий login/cookie/refresh ещё
+  требует браузерной проверки.
+- Локальная проверка 2026-10-09: `go test ./...` прошёл. Тесты покрывают
+  регистрацию с `http://localhost:8079`, preflight до Auth/JWT, обычные ответы
+  Auth/Core/Game, ошибки Gateway, запрещённые источники, запросы без Origin,
+  передачу cookie Auth и фильтрацию CORS-заголовков целевого сервиса.
+- `docker compose up -d --build api-gateway` выполнен; контейнер Gateway healthy.
+  HTTP-проверки подтвердили credentials `true` и точный Origin для preflight
+  регистрации (204), ошибки валидации Auth (400) и ошибки JWT Gateway (401).
+  Preflight с посторонним Origin (403) и OPTIONS без Origin (405) не получили
+  разрешающих заголовков.
+- Браузерная форма на `http://localhost:8079/register` отправила запрос с
+  credentials и заведомо невалидным именем пользователя. Auth вернул 400;
+  фронтенд обработал ответ как ошибку регистрации без прежней CORS-блокировки.
+  Аккаунт не создан. Успешные вход, сохранение cookie и refresh пока не проверены;
+  пользователь выбрал самостоятельную проверку этого сценария.
 
-## 2026-10-01 current-user routes and logging
+## 2026-10-02: маршрут текущего пользователя и CORS localhost
 
-Historical state; `/me` routing is superseded by the 2026-10-02 change above.
+- Источник: план реализации, одобренный пользователем в этом чате 2026-10-02.
+  Включены только маршрут `/me` и CORS localhost. Диагностика заголовков Core,
+  адаптация тела и изменения Java были явно исключены из задачи.
+- Публичный `GET /api/v1/user/me` требует JWT и пересылается в Auth на
+  `/api/v1/user/me/{sub}` через существующее middleware текущего пользователя.
+  Клиентские заголовки идентичности и параметры запроса не могут выбрать ID;
+  ответ Auth сохраняется. Старый публичный маршрут с ID и форма с завершающей
+  косой чертой возвращают 404.
+- CORS разрешает точное имя хоста `localhost` (без учёта регистра) для HTTP/HTTPS
+  без порта или с любым портом в диапазоне 1..65535, даже без настроенных
+  источников. Явный список `GATEWAY_CORS_ORIGINS` по-прежнему дополняет разрешения.
+  Источники с учётными данными, путём, строкой запроса, фрагментом, непрозрачными
+  URL и похожими на localhost именами отклоняются; числовые петлевые адреса
+  автоматически не разрешаются. Preflight проверяет объявленные методы до JWT;
+  правила Origin/Vary в ответах и отсутствие передачи учётных данных сохранялись
+  на момент этой проверки; политика credentials изменена решением 2026-10-09 выше.
+- Существующий генератор сопоставляет путь `me` целевого сервиса новому публичному
+  псевдониму, сохраняя `operationId: me`, защиту Bearer и схему ответа Auth.
+  Снимок Auth не изменён; YAML Gateway и автономный Swagger пересобраны.
+  Известная ошибка проверки errcheck оставлена без изменений.
+- Локальная проверка 2026-10-02: `go test ./...`, `go test -race ./...`
+  и `go vet ./...` прошли; HTTP-пакет повторно прошёл `-race` после рефакторинга
+  вспомогательной функции Origin. Оба генератора прошли `--check`. Проверка Ruby
+  разобрала YAML и встроенный JSON HTML и подтвердила публичный путь, удаление
+  userId, защиту Bearer, ID операции и неизменность схемы ответа целевого сервиса.
+  `golangci-lint run` сообщает только о сохранённой ошибке errcheck в `documentation.go:22`.
 
-- Source: the user's request and clarification in this chat on 2026-10-01.
-  The user reports that the Redis/logout problem was fixed outside Gateway;
-  Redis diagnosis and Auth logout changes are outside this task. This report
-  is not an independently repeated integration test.
-- `GET /api/v1/players` and `/api/v1/players/` forward to Game's
-  `/api/v1/players/{sub}` without a redirect; an explicit player ID is preserved.
-  `GET /api/v1/user/me/{userId}` requires JWT and an ID equal to `sub`;
-  the short `/api/v1/user/me` is absent. Six protected user/verification
-  operations now omit ID publicly; Gateway appends verified `sub` for Auth.
-  Forged identity headers/query parameters cannot select the user.
-- `auth-service-openapi.yaml` contains a source-reviewed addition for
-  `UserController.me(UUID)` and its empty `UserControllerDto`. The existing
-  mapper does not copy username/email/isVerified from the service DTO. The user
-  will complete Auth separately. No fields are fabricated in Gateway's contract.
-  Source/build identity and running-service response remain unverified.
-- All 15 Core, 16 Auth and eight Game operations are declared in the common
-  `internal/httpapi/routes.go`. Core now uses exact method/path matching:
-  unknown paths return 404 and wrong methods return 405 with a complete `Allow`.
-  CORS preflight permits only declared methods, without requiring JWT.
-- `scripts/build_gateway_openapi.rb` verifies all three snapshots against that
-  table, maps the six ID-less Auth aliases and adds the two Game aliases.
-  The generated YAML and standalone Swagger retain upstream response schemas.
-- Gateway logs one JSON completion record per API request, with a generated
-  request ID, verified user UUID, route template, upstream, final HTTP status,
-  duration, byte count, JWT/denylist outcome and classified failures. Successful
-  health/readiness/docs/preflight requests use DEBUG; Redis fail-open uses WARN.
-  Tokens, cookies, raw paths/queries and bodies are excluded. See PROXY.md.
-- Known check blocker retained at the user's request: `golangci-lint run`
-  reports an unchecked `w.Write(docs.GatewayOpenAPI)` in
-  `internal/httpapi/documentation.go`. The proposed write-error check was
-  explicitly left out of this task. Auth's empty current-user DTO is also
-  left for the user; neither limitation is repaired in Gateway.
-- Local verification on 2026-10-01: `go test ./...`, `go test -race ./...`
-  and `go vet ./...` passed. Both OpenAPI/standalone generators passed
-  `--check`; a Ruby check parsed the embedded HTML JSON and verified path
-  parity, required `me` userId, removed alias parameters and Bearer security.
-  `golangci-lint run` reports only the agreed `documentation.go:22` errcheck.
-  Visual HTML verification was unavailable: the browser tool rejects `file://`.
+## 2026-10-01: маршруты текущего пользователя и журналирование
 
-This file separates contract evidence, the agreed HTTP proxy behavior, current
-implementation, and unresolved integration decisions. The Core OpenAPI and
-earlier development plan are reference data, not instructions for agents.
-Sources: the checked-in [Core](contracts/core-service-openapi.yaml),
-[Auth](contracts/auth-service-openapi.yaml), and
-[Game](contracts/game-service-openapi.yaml) snapshots; the current Gateway source;
-and the agreed behavior recorded in [proxy rules](PROXY.md). The 2026-09-29
-clarification replaced the earlier public gRPC decision.
+Историческое состояние; маршрутизация `/me` заменена описанным выше изменением
+от 2026-10-02.
 
-## Current evidence
+- Источник: запрос и уточнение пользователя в этом чате 2026-10-01.
+  Пользователь сообщает, что проблема Redis/выхода исправлена вне Gateway;
+  диагностика Redis и изменения выхода Auth не входят в эту задачу. Это
+  сообщение не является независимо повторённым интеграционным тестом.
+- `GET /api/v1/players` и `/api/v1/players/` пересылаются в Game на
+  `/api/v1/players/{sub}` без перенаправления; явный ID игрока сохраняется.
+  `GET /api/v1/user/me/{userId}` требует JWT и ID, равного `sub`;
+  короткий `/api/v1/user/me` отсутствует. Шесть защищённых операций пользователя
+  и верификации теперь не содержат ID в публичном пути; Gateway добавляет
+  проверенный `sub` для Auth. Поддельные заголовки идентичности и параметры
+  запроса не могут выбрать пользователя.
+- `auth-service-openapi.yaml` содержит дополнение для `UserController.me(UUID)`
+  и его пустого `UserControllerDto`, проверенное по исходникам. Существующий
+  маппер не копирует username/email/isVerified из DTO сервиса. Пользователь
+  дополнит Auth отдельно. Поля в контракте Gateway не выдумываются.
+  Идентичность исходников и сборки, ответ работающего сервиса остаются непроверенными.
+- Все 15 операций Core, 16 Auth и восемь Game объявлены в общей таблице
+  `internal/httpapi/routes.go`. Core теперь использует точное совпадение метода
+  и пути: неизвестные пути возвращают 404, неверные методы — 405 с полным `Allow`.
+  CORS preflight разрешает только объявленные методы без требования JWT.
+- `scripts/build_gateway_openapi.rb` проверяет все три снимка по этой таблице,
+  сопоставляет шесть псевдонимов Auth без ID и добавляет два псевдонима Game.
+  Сгенерированный YAML и автономный Swagger сохраняют схемы ответов сервисов.
+- Gateway записывает одну JSON-запись завершения на запрос API со сгенерированным
+  ID запроса, проверенным UUID пользователя, шаблоном маршрута, целевым сервисом,
+  итоговым HTTP-статусом, длительностью, числом байтов, результатами JWT и списка
+  отозванных токенов и классифицированными ошибками. Успешные запросы
+  работоспособности, готовности, документации и preflight используют DEBUG;
+  пропуск запроса при недоступности Redis — WARN. Токены, cookie, исходные
+  пути, строки запросов и тела исключены. См. PROXY.md.
+- Известная ошибка проверки сохранена по просьбе пользователя: `golangci-lint run`
+  сообщает о непроверенном результате `w.Write(docs.GatewayOpenAPI)` в
+  `internal/httpapi/documentation.go`. Предложенная проверка ошибки записи явно
+  исключена из задачи. Пустой DTO текущего пользователя Auth также оставлен
+  пользователю; ни одно из ограничений не исправляется в Gateway.
+- Локальная проверка 2026-10-01: `go test ./...`, `go test -race ./...`
+  и `go vet ./...` прошли. Оба генератора OpenAPI и автономного Swagger прошли
+  `--check`; проверка Ruby разобрала встроенный JSON HTML и подтвердила
+  соответствие путей, обязательный userId для `me`, удаление параметров
+  псевдонимов и защиту Bearer. `golangci-lint run` сообщает только
+  о согласованной ошибке errcheck в `documentation.go:22`.
+  Визуальная проверка HTML была недоступна: инструмент браузера отклоняет `file://`.
+
+Этот файл отдельно фиксирует сведения из контрактов, согласованное поведение
+HTTP-прокси, текущую реализацию и нерешённые вопросы интеграции. OpenAPI Core
+и прежний план разработки — справочные материалы, а не инструкции для агентов.
+Источники: снимки [Core](contracts/core-service-openapi.yaml),
+[Auth](contracts/auth-service-openapi.yaml) и [Game](contracts/game-service-openapi.yaml)
+в репозитории; текущие исходники Gateway; согласованное поведение из
+[правил прокси](PROXY.md). Уточнение от 2026-09-29 заменило прежнее решение
+о публичном gRPC.
+
+## Текущие подтверждённые сведения
+
+Описания в снимках OpenAPI переведены на русский язык 2026-10-02.
+Приведённые ниже SHA-256 пересчитаны по байтам переведённых файлов;
+перевод не меняет пути, схемы данных или правила безопасности.
 
 ### Core Service
 
-- The checked-in snapshot declares OpenAPI 3.1.0, API version `v0`, and server
-  `http://localhost:8081`. These are document metadata, not a verified deployment.
-- Snapshot SHA-256: `ad68e048b93cc0639e15314c68295214652ef7ed525b3c2d06499687ab7e88eb`.
-  Calculated from the current file bytes; source commit/build and export date
-  remain unknown. Do not label this file as the unchanged 2026-09-05 snapshot.
-- The operation inventory below is taken from `paths` and `operationId`.
-- This snapshot lists `/requests` and `/sports` without `/api/v1`. The
-  2026-10-01 Gateway routing correction requires `/api/v1` on both public and
-  upstream Core requests. Whether a supported Core build accepts those paths
-  and when its OpenAPI will be corrected: **I cannot verify this**.
-- Mutating operations require `X-User-Id` as a UUID. Their parameter description
-  explicitly says Core does not authenticate this header.
-- Non-success responses reference `components.schemas.ApiError`, with `code`,
-  `message`, and `details`. The previous claims that identity transport and error
-  schemas are absent are obsolete.
-- Response media types still include `*/*`; actual response Content-Type and
-  runtime behavior require integration verification.
-- Real service conformance: **I cannot verify this**. Documentation review is not
-  an integration run and does not establish that the operations work in production.
+- Снимок в репозитории объявляет OpenAPI 3.1.0, версию API `v0` и сервер
+  `http://localhost:8081`. Это метаданные документа, а не проверенное развёртывание.
+- SHA-256 снимка: `7db1930ca43ee066c02174b36dcb52b5d10d32da30e603b7a450052d9636fe12`.
+  Рассчитан по текущим байтам файла; исходный коммит, сборка и дата экспорта
+  остаются неизвестными. Не называйте этот файл неизменённым снимком от 2026-09-05.
+- Список операций ниже взят из `paths` и `operationId`.
+- Этот снимок содержит `/requests` и `/sports` без `/api/v1`. Исправление
+  маршрутизации Gateway от 2026-10-01 требует `/api/v1` в публичных запросах
+  и запросах к Core. Принимает ли поддерживаемая сборка Core эти пути
+  и когда её OpenAPI будет исправлен: **я не могу проверить это (I cannot verify this)**.
+- Изменяющие операции требуют `X-User-Id` в формате UUID. В описании параметра
+  явно сказано, что Core не аутентифицирует этот заголовок.
+- Неуспешные ответы ссылаются на `components.schemas.ApiError` с `code`,
+  `message` и `details`. Прежние утверждения об отсутствии передачи
+  идентичности и схем ошибок устарели.
+- Типы содержимого ответов всё ещё включают `*/*`; фактический Content-Type
+  и поведение при работе требуют интеграционной проверки.
+- Соответствие реального сервиса: **я не могу проверить это (I cannot verify this)**.
+  Изучение документации не является интеграционным запуском и не доказывает,
+  что операции работают в эксплуатации.
 
-### Auth and Game snapshots
+### Снимки Auth и Game
 
-- The Auth snapshot declares OpenAPI 3.1.0, version `0.0.1`, and server
-  `http://localhost:8080` without `/api/v1`. SHA-256 of its current file bytes:
-  `f712898551059b5329ecc16f1e5c487186967ee9d380c537bf521b69a55043f5`.
-  It now declares 17 operations, including `GET /health` and the source-reviewed
-  `GET /user/me/{userId}` addition; Gateway exposes the other 16 under `/api/v1`,
-  exposing `/api/v1/user/me` with JWT subject substitution and omitting userId
-  from six protected user/verification mutations. The server URL in this
-  snapshot does not document that prefix. See the exact [Gateway route table](PROXY.md#routing-and-http-behavior).
-- The Game snapshot declares OpenAPI 3.0.1, version `v0`, and server
-  `http://localhost:8082/api/v1`. SHA-256 of its current file bytes:
-  `63ac237b5b1ae6a40d25f074d97555aef7edea617c6b778819372c3f8c9ed4d9`.
-  Its six GET operations appear in the [Gateway route table](PROXY.md#routing-and-http-behavior).
-- Neither file identifies a source commit or supported running build. Snapshot
-  content does not establish that either running service accepts the Gateway's
-  paths, headers, cookies, or health checks. **I cannot verify this** from the
-  repository and stub tests.
+- Снимок Auth объявляет OpenAPI 3.1.0, версию `0.0.1` и сервер
+  `http://localhost:8080` без `/api/v1`. SHA-256 текущих байтов файла:
+  `625b8839b262a8d31dfdd76d767f33fee50607fa4ee2683dbe592b9fb2fb7873`.
+  Теперь в нём 17 операций, включая `GET /health` и дополнение
+  `GET /user/me/{userId}`, проверенное по исходникам; Gateway предоставляет
+  остальные 16 под `/api/v1`, публикует `/api/v1/user/me` с подстановкой субъекта
+  JWT и убирает userId из шести защищённых операций изменения пользователя
+  и верификации. URL сервера в снимке не документирует этот префикс.
+  См. точную [таблицу маршрутов Gateway](PROXY.md#routing-and-http-behavior).
+- Снимок Game объявляет OpenAPI 3.0.1, версию `v0` и сервер
+  `http://localhost:8082/api/v1`. SHA-256 текущих байтов файла:
+  `9dcef3a06406f0781f20c480f65d260df20795a8f6545c0c45ee5db849520003`.
+  Его шесть операций GET приведены в [таблице маршрутов Gateway](PROXY.md#routing-and-http-behavior).
+- Ни один файл не указывает исходный коммит или поддерживаемую работающую сборку.
+  Содержимое снимков не доказывает, что работающий сервис принимает пути,
+  заголовки, cookie или проверки работоспособности Gateway.
+  **Я не могу проверить это (I cannot verify this)** по репозиторию и тестам на заглушках.
 
-## Agreed Gateway behavior
+## Согласованное поведение Gateway
 
-Source: the user's 2026-09-29 clarification, follow-up decisions, and
-2026-10-01 Core path correction. This is the intended behavior; implementation
-status is recorded separately below.
+Источник: уточнение пользователя от 2026-09-29, последующие решения
+и исправление путей Core от 2026-10-01. Это ожидаемое поведение;
+состояние реализации записано отдельно ниже.
 
-- Frontend → HTTP Gateway proxy → HTTP Core. There is no second Gateway Core
-  API schema, DTO mapping, or prescribed success/error body format. Public and
-  upstream Core paths both use `/api/v1`; old unprefixed paths are not aliases.
-- Route only the 15 declared Core method/path pairs in the common table,
-  including `/api/v1/sports`. This supersedes the earlier subtree-forwarding
-  policy by the user's 2026-10-01 clarification. New operations need a table
-  and snapshot update. Preserve method, escaped path, query, request body,
-  Core status/body and ordinary headers; do not interpret Core business errors.
-- Every Core operation requires a verified access JWT, including GET. In addition
-  to signature verification with the Auth-provided secret_key, verify token type
-  and check the Redis denylist before deriving user UUID/trusted context. A Redis
-  outage/timeout permits a valid JWT through without a conclusive denylist result;
-  a confirmed denylist hit still rejects it. Auth contract details are below.
-  This is Gateway policy, not an OpenAPI security declaration.
-- Identity comes only from the verified token. Remove client-supplied
-  `Authorization`, `Cookie`, `X-User-Id`, `X-Request-Id`, and untrusted forwarding
-  headers before proxying; send the trusted UUID as `X-User-Id` on every Core
-  request. Core must be protected from direct untrusted access; the mechanism is
-  open.
-- Generate a new UUID `X-Request-Id` for each request, replacing the client value;
-  send it to the client and upstream. An upstream response cannot override it.
-- Gateway-owned failures have an HTTP status and `X-Request-Id` but no required
-  JSON body schema. Missing/invalid JWT is 401, unclassified Redis lookup error
-  is 503, unknown path is 404, wrong method is 405 with `Allow`, upstream
-  connection failure is 502, and upstream
-  timeout is 504. Core's own errors pass through unchanged.
-- The frontend calls the Gateway directly. CORS permits HTTP/HTTPS localhost
-  origins on any valid port plus configured exact origins, permits `Authorization`,
-  handles preflight without JWT, and does not enable credentials. Exact non-local
-  deployment origins have not been provided.
-- The agreed Auth/Game addition exposes only the 24 method/path pairs in
-  [PROXY.md](PROXY.md#routing-and-http-behavior). Public and upstream paths
-  retain `/api/v1`. Five Auth operations are public; the remaining Auth and all
-  Game operations require a verified access JWT. Auth `{userId}` must match
-  the verified `sub`; Game player paths may name another player.
-- Auth receives cookies and returns `Set-Cookie` unchanged; protected Auth
-  calls receive the verified Bearer and trusted `X-User-Id`. Game receives
-  trusted `X-User-Id` without the client's Bearer, cookie, or identity headers.
-  Gateway handles CORS on all routes without credentialed CORS, so the planned
-  browser refresh flow uses the same origin.
-- Startup does not require healthy dependencies. `/readyz` requires Redis PING
-  and HTTP 200 from separately configured Auth, Core, and Game health URLs
-  within one shared timeout.
+- Фронтенд → HTTP-прокси Gateway → HTTP Core. Нет второй схемы API Core
+  в Gateway, преобразования DTO или обязательного формата тела успешного ответа
+  либо ошибки. Публичные пути и пути Core используют `/api/v1`;
+  старые пути без префикса не являются псевдонимами.
+- Маршрутизировать только 15 объявленных пар метода и пути Core из общей таблицы,
+  включая `/api/v1/sports`. Это заменяет прежнюю политику пересылки поддеревьев
+  согласно уточнению пользователя от 2026-10-01. Новые операции требуют
+  обновления таблицы и снимка. Сохранять метод, экранированный путь, строку
+  запроса, тело, статус и тело ответа Core и обычные заголовки; не трактовать
+  бизнес-ошибки Core.
+- Каждая операция Core требует проверенный JWT доступа, включая GET. Помимо
+  проверки подписи с предоставленным Auth secret_key, проверять тип токена
+  и список отозванных токенов Redis до получения UUID пользователя и доверенного
+  контекста. Недоступность или тайм-аут Redis позволяют пропустить действительный
+  JWT без окончательного результата проверки списка; подтверждённое наличие
+  токена в списке всё равно приводит к отказу. Подробности контракта Auth ниже.
+  Это политика Gateway, а не объявление безопасности в OpenAPI.
+- Идентичность берётся только из проверенного токена. Перед проксированием
+  удалять клиентские `Authorization`, `Cookie`, `X-User-Id`, `X-Request-Id`
+  и недоверенные заголовки пересылки; отправлять доверенный UUID как `X-User-Id`
+  в каждом запросе Core. Core должен быть защищён от прямого недоверенного
+  доступа; механизм пока не определён.
+- Генерировать новый UUID `X-Request-Id` на каждый запрос вместо клиентского
+  значения; передавать его клиенту и сервису. Ответ сервиса не может заменить его.
+- Собственные ошибки Gateway имеют HTTP-статус и `X-Request-Id`, но не требуют
+  схемы JSON-тела. Отсутствующий или недействительный JWT — 401,
+  неклассифицированная ошибка поиска Redis — 503, неизвестный путь — 404,
+  неверный метод — 405 с `Allow`, ошибка соединения с сервисом — 502,
+  тайм-аут сервиса — 504. Собственные ошибки Core передаются без изменений.
+- Фронтенд обращается к Gateway напрямую. CORS разрешает HTTP/HTTPS-источники
+  localhost на любом допустимом порту и настроенные точные источники,
+  разрешает `Authorization`, обрабатывает preflight без JWT и выдаёт
+  `Access-Control-Allow-Credentials: true` для разрешённых источников.
+  Точные нелокальные источники развёртывания не предоставлены.
+- Согласованное добавление Auth/Game предоставляет только 24 пары метода
+  и пути из [PROXY.md](PROXY.md#routing-and-http-behavior). Публичные пути
+  и пути сервисов сохраняют `/api/v1`. Пять операций Auth публичные;
+  остальные операции Auth и все Game требуют проверенный JWT доступа.
+  `{userId}` Auth должен совпадать с проверенным `sub`; пути игроков Game
+  могут указывать на другого игрока.
+- Auth получает cookie и возвращает `Set-Cookie` без изменений; защищённые
+  вызовы Auth получают проверенный Bearer и доверенный `X-User-Id`. Game
+  получает доверенный `X-User-Id` без клиентских Bearer, cookie и заголовков
+  идентичности. Gateway обрабатывает CORS с передачей учётных данных для
+  разрешённых источников на всех известных маршрутах; браузерный сценарий
+  обновления токенов может использовать разные разрешённые источники.
+- Запуск не требует работоспособности зависимостей. `/readyz` требует Redis PING
+  и HTTP 200 от отдельно настроенных URL проверок работоспособности Auth, Core
+  и Game в пределах одного общего тайм-аута.
 
-## Current implementation
+## Текущая реализация
 
-- `cmd/gateway/main.go` wires Core, Auth, and Game HTTP reverse proxies into
-  one server. `internal/httpapi` uses a common exact table for 15 Core,
-  16 Auth and eight Game method/path pairs (six upstream operations plus two current-player aliases). `/healthz`, `/readyz`, `/openapi.yaml`, and the bundled
-  `/swagger/` UI share the listener. The Gateway OpenAPI remains a draft based
-  on the checked-in snapshots; the UI does not verify real-service conformance.
-- `internal/auth` supplies JWT and Redis denylist verification to HTTP
-  middleware. `internal/httpapi` handles authentication, request IDs, CORS, and
-  per-service request timeouts; `internal/proxy` rewrites and forwards HTTP requests.
-- `REDIS_PASSWORD` is optional. If set, configuration rejects an empty or
-  whitespace-only value and passes the value to the Redis client for its
-  denylist checks and readiness PING. `.env.example` documents the setting.
-  In a local smoke test with `redis:7-alpine`, `/readyz` returned 200 with the
-  configured password and 503 with a wrong password. This does not verify the
-  running Auth service or its Redis configuration.
-- The former public gRPC listener, gRPC adapter, typed Core client, protobuf
-  schema/generated code, and gRPC/protobuf dependencies are absent from the
-  current source tree. HTTP component tests cover the new path.
-- Component tests exercise all 39 Core/Auth/Game routes, JWT boundaries, forged
-  headers, cookies, CORS, readiness failures, upstream response pass-through,
-  502/504 transport failures, and no retry after a failed Auth POST. These are
-  stub tests; they do not establish conformance of running Auth, Core, or Game.
-  **I cannot verify this** from source and component tests alone.
+- `cmd/gateway/main.go` подключает обратные HTTP-прокси Core, Auth и Game
+  к одному серверу. `internal/httpapi` использует общую точную таблицу
+  из 15 пар метода и пути Core, 16 Auth и восьми Game (шесть операций сервиса
+  и два псевдонима текущего игрока). `/healthz`, `/readyz`, `/openapi.yaml`
+  и встроенный интерфейс `/swagger/` используют тот же слушатель.
+  OpenAPI Gateway остаётся черновиком на основе снимков в репозитории;
+  интерфейс не проверяет соответствие реальных сервисов.
+- `internal/auth` предоставляет проверку JWT и списка отозванных токенов Redis
+  для HTTP middleware. `internal/httpapi` обрабатывает аутентификацию,
+  идентификаторы запросов, CORS и тайм-ауты запросов отдельных сервисов;
+  `internal/proxy` переписывает и пересылает HTTP-запросы.
+- `REDIS_PASSWORD` необязателен. Если он задан, конфигурация отклоняет пустое
+  значение или значение из одних пробелов и передаёт его клиенту Redis для
+  проверок списка отозванных токенов и PING готовности. `.env.example`
+  документирует настройку. В локальной базовой проверке с `redis:7-alpine`
+  `/readyz` вернул 200 с настроенным паролем и 503 с неверным. Это не проверяет
+  работающий Auth или его конфигурацию Redis.
+- Прежние публичный слушатель gRPC, адаптер gRPC, типизированный клиент Core,
+  схема protobuf и сгенерированный код, зависимости gRPC/protobuf отсутствуют
+  в текущем дереве исходников. Компонентные HTTP-тесты покрывают новый путь.
+- Компонентные тесты проверяют все 39 маршрутов Core/Auth/Game, границы JWT,
+  поддельные заголовки, cookie, CORS, ошибки готовности, передачу ответов сервисов,
+  транспортные ошибки 502/504 и отсутствие повтора после неудачного POST Auth.
+  Это тесты на заглушках; они не доказывают соответствие работающих Auth, Core
+  или Game. **Я не могу проверить это (I cannot verify this)** только по исходникам
+  и компонентным тестам.
 
-## Core operation inventory
+## Список операций Core
 
-Each row is a method/path pair in the Core snapshot. The Gateway prepends
-`/api/v1` to the listed snapshot path for both public and upstream requests.
-All routed requests require a Gateway-verified JWT and receive a trusted
-`X-User-Id`; the last column records which operations currently declare that
-header as required in Core OpenAPI.
+Каждая строка — пара метода и пути из снимка Core. Gateway добавляет `/api/v1`
+к указанному пути и для публичных запросов, и для запросов к сервису.
+Все маршрутизируемые запросы требуют JWT, проверенный Gateway, и получают
+доверенный `X-User-Id`; последний столбец показывает, какие операции сейчас
+объявляют этот заголовок обязательным в OpenAPI Core.
 
-| Operation | Method | Snapshot path | Core declares X-User-Id required |
+| Операция | Метод | Путь в снимке | Core объявляет X-User-Id обязательным |
 |---|---|---|---|
-| `getRequestDetails` | GET | `/requests/{id}` | No |
-| `updateRequest` | PUT | `/requests/{id}` | Yes |
-| `searchNearbyRequests` | GET | `/requests` | No |
-| `createRequest` | POST | `/requests` | Yes |
-| `recordRoundResult` | POST | `/requests/{requestId}/rounds/{roundNumber}/result` | Yes |
-| `completeRequest` | POST | `/requests/{requestId}/complete` | Yes |
-| `startRequest` | POST | `/requests/{id}/start` | Yes |
-| `openRegistration` | POST | `/requests/{id}/registration/open` | Yes |
-| `closeRegistration` | POST | `/requests/{id}/registration/close` | Yes |
-| `leaveRequest` | POST | `/requests/{id}/leave` | Yes |
-| `kickParticipant` | POST | `/requests/{id}/kick/{targetUserId}` | Yes |
-| `joinRequest` | POST | `/requests/{id}/join` | Yes |
-| `cancelRequest` | POST | `/requests/{id}/cancel` | Yes |
-| `getAllSports` | GET | `/sports` | No |
-| `getRoundResults` | GET | `/requests/{requestId}/rounds` | No |
+| `getRequestDetails` | GET | `/requests/{id}` | Нет |
+| `updateRequest` | PUT | `/requests/{id}` | Да |
+| `searchNearbyRequests` | GET | `/requests` | Нет |
+| `createRequest` | POST | `/requests` | Да |
+| `recordRoundResult` | POST | `/requests/{requestId}/rounds/{roundNumber}/result` | Да |
+| `completeRequest` | POST | `/requests/{requestId}/complete` | Да |
+| `startRequest` | POST | `/requests/{id}/start` | Да |
+| `openRegistration` | POST | `/requests/{id}/registration/open` | Да |
+| `closeRegistration` | POST | `/requests/{id}/registration/close` | Да |
+| `leaveRequest` | POST | `/requests/{id}/leave` | Да |
+| `kickParticipant` | POST | `/requests/{id}/kick/{targetUserId}` | Да |
+| `joinRequest` | POST | `/requests/{id}/join` | Да |
+| `cancelRequest` | POST | `/requests/{id}/cancel` | Да |
+| `getAllSports` | GET | `/sports` | Нет |
+| `getRoundResults` | GET | `/requests/{requestId}/rounds` | Нет |
 
-## Auth behavior retained from the previous integration record
+## Поведение Auth, сохранённое из предыдущего журнала интеграции
 
 ### Auth Service
 
-- Access tokens are JWTs signed with a shared secret.
-- User-provided Auth fragment places the user UUID string in `sub`, a new token UUID
-  in `jti`, issuance in `iat`, expiration in `exp`, and token kind in `type`.
-- `type` is `ACCESS` or `REFRESH`; Gateway accepts only `ACCESS`. The supplied
-  constants define access duration as 5 minutes and refresh duration as 30 days.
-- User confirmed on 2026-09-29: Auth always signs with HS512 and converts
-  `secret_key` to UTF-8 bytes; Gateway must accept HS512 only. This supersedes the
-  earlier tentative algorithm-by-key-length description.
-- User confirmed no `kid`, no simultaneous old/new key acceptance and no rotation
-  policy. `iss`/`aud` are absent. User clarified that `iat` and `exp` are present,
-  with no additional temporal claims. Gateway requires both, rejects future `iat`
-  and expired `exp`, and applies zero clock skew (no grace period). These are
-  user-confirmed contract decisions, not verified behavior of a running Auth build.
-- Redis denylist stores access-token keys as `jwt:denylist:<jti>` with an empty
-  string value and a five-minute TTL, per the user's 2026-09-28 clarification.
-  Auth writes the entry at logout and starts its TTL then, per the user's
-  2026-09-29 confirmation. Key existence indicates revocation. Runtime behavior
-  against Auth/Redis remains unverified.
-  User superseded the earlier fail-closed decision: when Redis is unavailable or
-  its lookup times out, Gateway may continue after successful JWT validation.
-  A revoked access token can therefore pass during the outage until `exp`.
-  User confirmed that only these two failure classes are fail-open. Redis
-  command/configuration errors and unclassified lookup errors remain fail-closed:
-  the HTTP Gateway returns 503 without calling Core.
-  Gateway must start when Redis is unavailable, but `/readyz` returns 503 until
-  Redis recovers, per the user's corrected 2026-09-29 clarification. Requests that
-  still reach the running Gateway follow the fail-open rule above.
-- Auth removes the refresh token from its database and adds the access token to
-  the denylist on logout, per the user's 2026-09-29 confirmation.
-- Refresh tokens are stored in the Auth database and transported through a cookie.
-- The current exact Auth route list comes from the newly supplied snapshot and
-  Gateway proxy plan, not the earlier candidate path patterns; see [PROXY.md](PROXY.md#routing-and-http-behavior).
-- Auth behavior requires fixes; the affected behavior is not yet specified.
-- Test tokens can be provided.
+- Токены доступа — JWT, подписанные общим секретом.
+- Фрагмент Auth, предоставленный пользователем, помещает строку UUID
+  пользователя в `sub`, новый UUID токена в `jti`, время выдачи в `iat`,
+  срок действия в `exp`, вид токена в `type`.
+- `type` равен `ACCESS` или `REFRESH`; Gateway принимает только `ACCESS`.
+  Предоставленные константы задают срок доступа 5 минут, обновления — 30 дней.
+- Пользователь подтвердил 2026-09-29: Auth всегда подписывает HS512 и преобразует
+  `secret_key` в байты UTF-8; Gateway должен принимать только HS512. Это заменяет
+  прежнее предварительное описание выбора алгоритма по длине ключа.
+- Пользователь подтвердил отсутствие `kid`, одновременного принятия старого
+  и нового ключа и политики ротации. `iss`/`aud` отсутствуют. Пользователь уточнил,
+  что `iat` и `exp` присутствуют без дополнительных временных полей.
+  Gateway требует оба, отклоняет `iat` из будущего и истёкший `exp`, не допускает
+  расхождения часов (без льготного периода). Это подтверждённые пользователем
+  решения контракта, а не проверенное поведение работающей сборки Auth.
+- Список отозванных токенов Redis хранит ключи токенов доступа как
+  `jwt:denylist:<jti>` с пустой строкой и TTL пять минут согласно уточнению
+  пользователя от 2026-09-28. Auth записывает ключ при выходе и начинает TTL
+  в этот момент согласно подтверждению пользователя от 2026-09-29. Наличие
+  ключа означает отзыв. Поведение работающих Auth/Redis остаётся непроверенным.
+  Пользователь заменил прежнее решение об отказе при ошибках: если Redis
+  недоступен или поиск завершается по тайм-ауту, Gateway может продолжить после
+  успешной проверки JWT. Поэтому отозванный токен доступа может пройти при
+  недоступности Redis до `exp`. Пользователь подтвердил, что только эти два
+  класса ошибок допускают пропуск запроса (fail-open). Ошибки команд и конфигурации
+  Redis и неклассифицированные ошибки поиска по-прежнему вызывают отказ
+  (fail-closed): HTTP Gateway возвращает 503 без вызова Core.
+  Gateway должен запускаться при недоступном Redis, но `/readyz` возвращает 503
+  до восстановления Redis согласно исправленному уточнению пользователя
+  от 2026-09-29. Запросы, всё же достигшие работающего Gateway, следуют правилу
+  fail-open выше.
+- При выходе Auth удаляет токен обновления из своей базы и добавляет токен
+  доступа в список отозванных согласно подтверждению пользователя от 2026-09-29.
+- Токены обновления хранятся в базе Auth и передаются через cookie.
+- Точный текущий список маршрутов Auth взят из нового предоставленного снимка
+  и плана прокси Gateway, а не из прежних предварительных шаблонов путей;
+  см. [PROXY.md](PROXY.md#routing-and-http-behavior).
+- Поведение Auth требует исправлений; затронутое поведение ещё не определено.
+- Тестовые токены могут быть предоставлены.
 
-### Game Service, chat, and environment
+### Game Service, чат и окружение
 
-- A six-operation Game OpenAPI snapshot is present. Runtime conformance, a
-  supported build, startup procedure, and health URL remain unverified.
-- WebSocket chat has been removed from the MVP.
-- Docker Compose is not ready and will be specified later.
-- Shared cross-service request-ID and error conventions remain unconfirmed;
-  Gateway policy is recorded above.
-- No special streaming, upload, or long-running Core requests have been reported.
+- Снимок OpenAPI Game с шестью операциями присутствует. Соответствие работающего
+  сервиса, поддерживаемая сборка, процедура запуска и URL проверки
+  работоспособности остаются непроверенными.
+- Чат WebSocket исключён из MVP.
+- Docker Compose не готов и будет определён позже.
+- Общие межсервисные соглашения об ID запросов и ошибках не подтверждены;
+  политика Gateway записана выше.
+- Об особых потоковых запросах, загрузках файлов или долгих запросах Core не сообщалось.
 
-## Operational behavior to verify
+## Эксплуатационное поведение, требующее проверки
 
-- `GATEWAY_CORE_URL`, `GATEWAY_AUTH_URL`, and `GATEWAY_GAME_URL` are validated
-  as HTTP(S) origins with a host, optional trailing `/`, and no credentials,
-  query, fragment, or extra base path. Each health URL is configured separately.
-  HTTP proxy timeout and cancellation have component tests; behavior against
-  running service deployments remains unverified.
-- Request logs should include method, route, HTTP status, duration, upstream,
-  and request ID, but never tokens, cookies, or bodies. Proxying must not add
-  automatic retries of mutating operations.
-- `Dockerfile` copies `go.mod` and `go.sum`, downloads modules before copying
-  source, and builds an image that declares the non-root `gateway` user. A local
-  `docker build` of merge commit `d613f1a` succeeded on 2026-09-29.
-  `docker image inspect` reported a `linux/arm64` image size of 7,850,037 bytes.
-  Deployment behavior remains unverified.
+- `GATEWAY_CORE_URL`, `GATEWAY_AUTH_URL` и `GATEWAY_GAME_URL` проверяются как
+  HTTP(S)-источники с хостом, необязательной завершающей `/`, без учётных данных,
+  строки запроса, фрагмента или дополнительного базового пути. Каждый URL
+  проверки работоспособности настраивается отдельно. Тайм-аут и отмена
+  HTTP-прокси покрыты компонентными тестами; поведение на работающих
+  развёртываниях сервисов остаётся непроверенным.
+- Журналы запросов должны включать метод, маршрут, HTTP-статус, длительность,
+  целевой сервис и ID запроса, но не токены, cookie или тела. Проксирование
+  не должно добавлять автоматические повторы изменяющих операций.
+- `Dockerfile` копирует `go.mod` и `go.sum`, загружает модули до копирования
+  исходников и собирает образ с объявленным пользователем `gateway` без root.
+  Локальный `docker build` коммита слияния `d613f1a` прошёл 2026-09-29.
+  `docker image inspect` сообщил размер образа `linux/arm64` — 7 850 037 байт.
+  Поведение развёртывания остаётся непроверенным.
 
-## Open decisions and questions
+## Открытые решения и вопросы
 
-### Core owner
+### Владелец Core
 
-1. Specify the network/trust boundary preventing direct client access to Core.
-2. Confirm that a supported Core build accepts `/api/v1/requests` and
-   `/api/v1/sports`, and publish a corrected OpenAPI that includes the prefix.
-3. Identify the commit/build that produced the snapshot and approve its revision.
-4. Provide startup dependencies, health/readiness endpoints and supported image.
-5. Verify response content types and snapshot conformance against the real service.
+1. Определить сетевую границу и границу доверия, исключающие прямой доступ клиента к Core.
+2. Подтвердить, что поддерживаемая сборка Core принимает `/api/v1/requests`
+   и `/api/v1/sports`, и опубликовать исправленный OpenAPI с этим префиксом.
+3. Указать коммит или сборку, из которых получен снимок, и одобрить его редакцию.
+4. Предоставить зависимости запуска, маршруты работоспособности и готовности,
+   поддерживаемый образ.
+5. Проверить типы содержимого ответов и соответствие снимку на реальном сервисе.
 
-### Auth owner
+### Владелец Auth
 
-1. Confirm that a supported Auth build implements the 16 declared Gateway
-   method/path pairs with the `/api/v1` prefix; correct `servers.url` in Auth's
-   owned OpenAPI snapshot.
-2. Verify required `iat`/`exp`, absence of additional temporal claims and zero
-   clock skew against a supported Auth build; document its clock requirements.
-3. Confirm HS512/UTF-8 and no-`kid`/no-overlap against a supported Auth build;
-   provide its revision.
-4. Document required Bearer and `X-User-Id` behavior, login `Set-Cookie`, the
-   refresh response's access-JWT format, and every refresh-cookie attribute.
-5. Confirm logout's refresh deletion and access denylisting against the running
-   service; specify refresh reuse, other revocation paths and blocked-user behavior.
-6. Identify pending Auth fixes and which Gateway scenarios they block.
-7. Supply sanitized valid, expired, malformed, wrong-signature, invalid-UUID,
-   wrong-type and denylisted token fixtures.
-8. Confirm Redis endpoint, logical database, authentication/TLS and lookup timeout;
-   verify the documented denylist key/TTL against Auth and test classification of
-   outages/timeouts versus other errors. Do not share the signing secret here.
+1. Подтвердить реализацию 16 объявленных пар метода и пути Gateway с префиксом
+   `/api/v1` в поддерживаемой сборке Auth; исправить `servers.url` в снимке OpenAPI Auth.
+2. Проверить обязательность `iat`/`exp`, отсутствие дополнительных временных
+   полей и нулевой допуск расхождения часов на поддерживаемой сборке Auth;
+   документировать требования к часам.
+3. Подтвердить HS512/UTF-8, отсутствие `kid` и перекрытия ключей на поддерживаемой
+   сборке Auth; предоставить её ревизию.
+4. Документировать требуемое поведение Bearer и `X-User-Id`, `Set-Cookie` входа,
+   формат JWT доступа в ответе обновления и все атрибуты cookie обновления.
+5. Подтвердить удаление токена обновления и отзыв токена доступа при выходе
+   на работающем сервисе; определить повторное использование токена обновления,
+   другие пути отзыва и поведение заблокированного пользователя.
+6. Указать ожидающие исправления Auth и сценарии Gateway, которые они блокируют.
+7. Предоставить обезличенные тестовые токены: действительный, истёкший,
+   некорректный, с неверной подписью, неверным UUID, неверным типом и отозванный.
+8. Подтвердить адрес Redis, логическую базу, аутентификацию/TLS и тайм-аут поиска;
+   проверить документированные ключ и TTL списка по Auth и классификацию
+   недоступности и тайм-аутов отдельно от других ошибок. Не публиковать здесь секрет подписи.
 
-### Frontend owner
+### Владелец фронтенда
 
-1. List exact local, test, and production origins for the Gateway CORS allow-list.
-2. Confirm the same-origin browser deployment for Auth refresh and Auth's CSRF
-   handling; cross-origin credentialed CORS is not configured in Gateway.
-3. Confirm the frontend uses `/api/v1/requests` and `/api/v1/sports`; the old
-   unprefixed paths are no longer Gateway routes.
+1. Перечислить точные локальные, тестовые и рабочие источники для списка CORS Gateway.
+2. Проверить браузерный сценарий входа и обновления Auth с credentials,
+   сохранение и передачу cookie и обработку CSRF в Auth; Gateway разрешает
+   CORS с передачей учётных данных только для разрешённых источников.
+3. Подтвердить использование фронтендом `/api/v1/requests` и `/api/v1/sports`;
+   старые пути без префикса больше не являются маршрутами Gateway.
 
-### Game owner
+### Владелец Game
 
-1. Identify the supported Game build matching the six-operation snapshot and
-   confirm its `/api/v1` paths, authentication boundary, and response behavior.
-2. Supply a supported container startup contract and a working health URL.
+1. Указать поддерживаемую сборку Game, соответствующую снимку с шестью
+   операциями, и подтвердить её пути `/api/v1`, границу аутентификации и ответы.
+2. Предоставить поддерживаемый контракт запуска контейнера и рабочий URL
+   проверки работоспособности.
 
-### Platform or team lead
+### Платформенная команда или руководитель команды
 
-1. Assign ownership of images, Compose dependencies, health checks and startup;
-   provide the actual health URLs for all three services.
-2. Establish HTTPS for the public browser connection; the TLS termination point
-   remains undecided.
-3. Prevent direct untrusted access to Core, which does not authenticate the
-   `X-User-Id` header.
-4. Decide whether upstreams adopt shared request-ID and error conventions.
+1. Назначить ответственных за образы, зависимости Compose, проверки
+   работоспособности и запуск; предоставить реальные URL проверок всех трёх сервисов.
+2. Обеспечить HTTPS для публичного браузерного соединения; точка завершения
+   TLS пока не выбрана.
+3. Исключить прямой недоверенный доступ к Core, который не аутентифицирует
+   заголовок `X-User-Id`.
+4. Решить, примут ли целевые сервисы общие соглашения об ID запросов и ошибках.
 
-## Decision log
+## Журнал решений
 
-| Decision | Value | Evidence | Status |
+| Решение | Значение | Основание | Статус |
 |---|---|---|---|
-| Core upstream and public paths | 15 exact method/path pairs in the common table; `/api/v1` paths preserved; unprefixed and unknown routes return 404, wrong methods return 405 | User corrections, 2026-10-01; snapshot still unprefixed | Implemented in source; supported Core build and corrected OpenAPI pending |
-| Core authentication | JWT for every routed Core request, including GET | Supplied plan + user confirmation, 2026-09-29 | HTTP middleware wired; real Auth/Redis verification open |
-| Identity | Trusted UUID in `X-User-Id` on every Core request; client value removed | User clarification, 2026-09-29 | Implemented in source; Core network boundary open |
-| Request ID | New Gateway UUID in `X-Request-Id`, replacing client and Core values | Supplied plan + user confirmation, 2026-09-29 | HTTP middleware wired |
-| Core responses | Preserve Core status, body, and ordinary end-to-end headers, including business errors | User clarification, 2026-09-29 | HTTP proxy wired; real Core verification open |
-| Gateway failures | HTTP status and request-ID header; no prescribed JSON body | User clarification, 2026-09-29 | Implemented in source |
-| Browser Core access | HTTP/HTTPS localhost on any valid port plus explicit origin allow-list; Bearer header, preflight without JWT, no credentialed CORS | User clarifications through 2026-10-02 | Implemented in source; non-local origins pending |
-| Redis unavailable/timeout | Continue for otherwise valid JWT if the request reaches Gateway; start without Redis, but `/readyz` returns 503; a denylist hit still rejects | User's corrected clarification, 2026-09-29 | Confirmed |
-| Other Redis lookup errors | Fail-closed; target Gateway HTTP status 503 | Previous decision + HTTP clarification, 2026-09-29 | Confirmed |
-| Access JWT / Redis denylist | HS512 with UTF-8 secret bytes; `sub`/`jti`/`iat`/`exp`/`type`; zero skew; denylist at logout | User confirmations through 2026-09-29 | Confirmed design; runtime verification open |
-| Public boundary | HTTP proxy; remove gRPC entirely | Latest user clarification, 2026-09-29 | Implemented in source; supersedes 2026-09-27 gRPC decision |
-| Auth routes and JWT | 16 exact `/api/v1` routes; five public, eleven JWT-protected; HS512, UTF-8, required `sub`/`jti`/`iat`/`exp`/`type`, zero skew | Auth snapshot + agreed proxy plan | Implemented against stubs; supported Auth build and corrected snapshot pending |
-| Refresh/browser | Gateway passes Auth cookies, uses same-origin browser flow, and does not enable credentialed CORS; cookie attributes and CSRF belong to Auth | Agreed proxy plan + current source | Stub-tested; real browser/Auth flow unverified |
-| Game routes | Eight exact GET paths under `/api/v1` for six upstream operations, all JWT-protected; trusted `X-User-Id` forwarded | Game snapshot + agreed proxy plan | Implemented against stubs; supported Game build unverified |
-| Readiness | Redis and HTTP 200 from configured Auth, Core, and Game health URLs within one timeout | Agreed proxy plan + current source | Component-tested; actual URLs pending |
-| Compose | Supported images, startup, and service dependencies required | Roadmap | Open |
+| Публичные пути Core и пути целевого сервиса | 15 точных пар метода и пути в общей таблице; пути `/api/v1` сохраняются; пути без префикса и неизвестные маршруты возвращают 404, неверные методы — 405 | Исправления пользователя, 2026-10-01; снимок всё ещё без префикса | Реализовано в исходниках; ожидаются поддерживаемая сборка Core и исправленный OpenAPI |
+| Аутентификация Core | JWT для каждого маршрутизируемого запроса Core, включая GET | Предоставленный план и подтверждение пользователя, 2026-09-29 | HTTP middleware подключено; проверка реальных Auth/Redis открыта |
+| Идентичность | Доверенный UUID в `X-User-Id` в каждом запросе Core; клиентское значение удаляется | Уточнение пользователя, 2026-09-29 | Реализовано в исходниках; сетевая граница Core не определена |
+| ID запроса | Новый UUID Gateway в `X-Request-Id` вместо значений клиента и Core | Предоставленный план и подтверждение пользователя, 2026-09-29 | HTTP middleware подключено |
+| Ответы Core | Сохранять статус, тело и обычные сквозные заголовки Core, включая бизнес-ошибки | Уточнение пользователя, 2026-09-29 | HTTP-прокси подключён; проверка реального Core открыта |
+| Ошибки Gateway | HTTP-статус и заголовок ID запроса; обязательного JSON-тела нет | Уточнение пользователя, 2026-09-29 | Реализовано в исходниках |
+| Доступ к Core из браузера | HTTP/HTTPS localhost на любом допустимом порту и явный список источников; заголовок Bearer, preflight без JWT, CORS с учётными данными для разрешённых источников | Уточнения пользователя по 2026-10-02 и план 2026-10-09 | Реализовано в исходниках; нелокальные источники ожидаются |
+| Недоступность или тайм-аут Redis | Продолжать с JWT, действительным по остальным проверкам, если запрос достиг Gateway; запускаться без Redis, но `/readyz` возвращает 503; наличие в списке отозванных всё равно вызывает отказ | Исправленное уточнение пользователя, 2026-09-29 | Подтверждено |
+| Другие ошибки поиска Redis | Отказ (fail-closed); целевой HTTP-статус Gateway — 503 | Предыдущее решение и уточнение HTTP, 2026-09-29 | Подтверждено |
+| JWT доступа и список отозванных токенов Redis | HS512 с байтами секрета UTF-8; `sub`/`jti`/`iat`/`exp`/`type`; нулевой допуск времени; отзыв при выходе | Подтверждения пользователя по 2026-09-29 | Архитектура подтверждена; проверка при работе открыта |
+| Публичная граница | HTTP-прокси; полностью удалить gRPC | Последнее уточнение пользователя, 2026-09-29 | Реализовано в исходниках; заменяет решение о gRPC от 2026-09-27 |
+| Маршруты Auth и JWT | 16 точных маршрутов `/api/v1`; пять публичных, одиннадцать защищены JWT; HS512, UTF-8, обязательные `sub`/`jti`/`iat`/`exp`/`type`, нулевой допуск времени | Снимок Auth и согласованный план прокси | Реализовано на заглушках; ожидаются поддерживаемая сборка Auth и исправленный снимок |
+| Обновление токенов и браузер | Gateway передаёт cookie Auth и разрешает CORS с учётными данными для разрешённых источников; атрибуты cookie и CSRF принадлежат Auth | Согласованный план прокси и план 2026-10-09 | Проверено на заглушках; реальный сценарий браузера/Auth не проверен |
+| Маршруты Game | Восемь точных путей GET под `/api/v1` для шести операций сервиса, все защищены JWT; передаётся доверенный `X-User-Id` | Снимок Game и согласованный план прокси | Реализовано на заглушках; поддерживаемая сборка Game не проверена |
+| Готовность | Redis и HTTP 200 от настроенных URL проверок Auth, Core и Game в пределах одного тайм-аута | Согласованный план прокси и текущие исходники | Проверено компонентными тестами; фактические URL ожидаются |
+| Compose | Требуются поддерживаемые образы, запуск и зависимости сервисов | План работ | Открыто |
 
-## Next step
+## Следующий шаг
 
-Verify [the HTTP proxy](PROXY.md) against running Auth/Redis, Core, and Game,
-then record every deviation from their snapshots. The current verifier accepts
-HS512 with UTF-8 key bytes and zero clock skew. It continues only for
-classified Redis connection failures and lookup timeouts after successful JWT
-validation; other lookup errors remain fail-closed. Gateway startup does not
-require a successful Redis PING, while `/readyz` returns 503 until Redis and
-all configured health URLs respond successfully.
+Проверить [HTTP-прокси](PROXY.md) на работающих Auth/Redis, Core и Game,
+затем записать каждое расхождение со снимками. Текущий проверяющий код принимает
+HS512 с байтами ключа UTF-8 и нулевым допуском расхождения часов. После успешной
+проверки JWT он продолжает только при классифицированных ошибках соединения
+Redis и тайм-аутах поиска; остальные ошибки поиска вызывают отказ. Запуск
+Gateway не требует успешного Redis PING, но `/readyz` возвращает 503 до успешного
+ответа Redis и всех настроенных URL проверок работоспособности.
 
-Compatibility with running Auth/Redis, Core, and Game deployments:
-**I cannot verify this** from the repository and stub tests. Supported builds,
-health URLs, exact frontend origins, public HTTPS, and upstream network isolation
-remain release conditions.
+Совместимость с работающими развёртываниями Auth/Redis, Core и Game
+**я не могу проверить (I cannot verify this)** по репозиторию и тестам на заглушках.
+Поддерживаемые сборки, URL проверок работоспособности, точные источники фронтенда,
+публичный HTTPS и сетевая изоляция целевых сервисов остаются условиями выпуска.

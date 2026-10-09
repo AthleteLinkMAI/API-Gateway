@@ -1,68 +1,75 @@
 # AthleteLink API Gateway
 
-Gateway for the AthleteLink microservice backend. The Gateway is an HTTP proxy:
-the frontend calls it over HTTP, and it forwards Core requests over HTTP after
-checking an access JWT and replacing trusted headers. The proxy is implemented
-in the current source tree; integration with running Auth/Redis and Core remains
-to be verified. See the integration record for the exact status.
+Шлюз для микросервисного бэкенда AthleteLink. Gateway работает как HTTP-прокси:
+фронтенд обращается к нему по HTTP, а он пересылает запросы в Core по HTTP после
+проверки JWT доступа и замены доверенных заголовков. Прокси реализован в текущем
+дереве исходников; интеграцию с работающими Auth/Redis и Core ещё нужно проверить.
+Точный статус приведён в журнале интеграции.
 
-- [Delivery roadmap](docs/ROADMAP.md)
-- [Integration status and open decisions](docs/INTEGRATION.md)
-- [Domain glossary](CONTEXT.md)
-- [Current Core Service OpenAPI snapshot](docs/contracts/core-service-openapi.yaml)
-- [Draft public Gateway OpenAPI](docs/contracts/gateway-openapi.yaml)
-- [HTTP proxy behavior and implementation status](docs/PROXY.md)
+- [План работ](docs/ROADMAP.md)
+- [Статус интеграции и открытые вопросы](docs/INTEGRATION.md)
+- [Словарь предметной области](CONTEXT.md)
+- [Текущий снимок OpenAPI Core Service](docs/contracts/core-service-openapi.yaml)
+- [Черновой публичный OpenAPI Gateway](docs/contracts/gateway-openapi.yaml)
+- [Поведение HTTP-прокси и состояние реализации](docs/PROXY.md)
 
-The proxy does not define a second Core API schema. The Core OpenAPI
-snapshot describes Core operations; the proxy document describes routing,
-authentication, header handling, and browser access at the Gateway.
-The draft Gateway OpenAPI is assembled from the three service snapshots and
-the Gateway route table with `ruby scripts/build_gateway_openapi.rb`. It is a
-client-facing view, not a second source of Core payload schemas. Run the same
-command with `--check` to verify that the checked-in file is current.
+Прокси не вводит вторую схему API Core. Снимок OpenAPI Core описывает операции
+Core; документ о прокси описывает маршрутизацию, аутентификацию, обработку
+заголовков и доступ из браузера через Gateway.
+Черновой OpenAPI Gateway собирается из снимков трёх сервисов и таблицы маршрутов
+Gateway командой `ruby scripts/build_gateway_openapi.rb`. Это представление для
+клиентов, а не второй источник схем полезной нагрузки Core. Запустите ту же
+команду с `--check`, чтобы проверить актуальность файла в репозитории.
 
-`GET /api/v1/players` (also `/api/v1/players/`, without a redirect) uses the
-verified JWT subject for the Game upstream path. `GET /api/v1/players/{userId}`
-still supports another player's profile. `GET /api/v1/user/me` forwards to Auth's
-`/api/v1/user/me/{sub}` using only the verified JWT subject.
-Auth's current `me` controller DTO is empty; completing its fields and mapper
-is an Auth task, and Gateway forwards the response unchanged.
+`GET /api/v1/players` (а также `/api/v1/players/`, без перенаправления) использует
+субъект проверенного JWT для пути запроса к Game. `GET /api/v1/players/{userId}`
+по-прежнему поддерживает профиль другого игрока. `GET /api/v1/user/me`
+пересылается в Auth на `/api/v1/user/me/{sub}` с использованием только субъекта
+проверенного JWT.
+Текущий DTO контроллера Auth для `me` пуст; заполнение его полей и маппера — задача
+Auth. Gateway пересылает ответ без изменений.
 
-The common [route table](internal/httpapi/routes.go) declares Core, Auth and
-Game operations. Unknown paths return 404; wrong methods return 405 with `Allow`.
-Core no longer accepts arbitrary subtree operations. Protected user/verification
-mutations omit userId publicly and forward the verified JWT subject to Auth.
-`/api/v1/user/me/{userId}` and `/api/v1/user/me/` are not public aliases.
-See [the full route list](docs/PROXY.md).
+Общая [таблица маршрутов](internal/httpapi/routes.go) объявляет операции Core,
+Auth и Game. Неизвестные пути возвращают 404; неверные методы — 405 с `Allow`.
+Core больше не принимает произвольные операции внутри поддерева путей.
+Защищённые операции изменения пользователя и верификации не содержат userId
+в публичном пути и передают в Auth субъект проверенного JWT.
+`/api/v1/user/me/{userId}` и `/api/v1/user/me/` не являются публичными псевдонимами.
+См. [полный список маршрутов](docs/PROXY.md).
 
-CORS automatically permits HTTP/HTTPS origins with the exact hostname
-`localhost` (case-insensitive) and any valid port, even without
-`GATEWAY_CORS_ORIGINS`. Configure other exact origins with that optional
-comma-separated setting. Numeric loopback addresses and subdomains are not
-permitted automatically. Credentialed CORS remains disabled.
+CORS автоматически разрешает HTTP/HTTPS-источники с точным именем хоста
+`localhost` (без учёта регистра) и любым допустимым портом, даже без
+`GATEWAY_CORS_ORIGINS`. Другие точные источники задаются этой необязательной
+настройкой через запятую. Числовые адреса петлевого интерфейса и поддомены
+автоматически не разрешаются. Для разрешённых источников Gateway возвращает
+`Access-Control-Allow-Credentials: true` в preflight и обычных ответах известных
+маршрутов Auth, Core и Game, включая ошибки. Для остальных источников и запросов
+без Origin разрешающие заголовки не выдаются. Фронтенд может обращаться к Gateway
+с `credentials: "include"` в Fetch или `withCredentials: true` в Axios.
 
-Gateway emits one JSON `http_request_completed` event per API request, including
-request ID, route template, verified user ID, upstream/status, duration, byte
-count, authentication and denylist outcomes. `GATEWAY_LOG_LEVEL=info` is the
-default; use `debug` to include successful health/readiness/Swagger/preflight
-requests. Redis fail-open requests emit WARN. Tokens, cookies, bodies, raw
-paths and query strings are excluded. See [the logging fields and levels](docs/PROXY.md#request-logging).
+Gateway записывает одно JSON-событие `http_request_completed` на каждый запрос
+к API: идентификатор запроса, шаблон маршрута, проверенный ID пользователя,
+целевой сервис и статус, длительность, число байтов, результаты аутентификации
+и проверки списка отозванных токенов. По умолчанию используется
+`GATEWAY_LOG_LEVEL=info`; уровень `debug` добавляет успешные запросы проверки
+работоспособности и готовности, Swagger и preflight. Запросы, пропущенные при
+недоступности Redis, записываются с уровнем WARN. Токены, cookie, тела, исходные
+пути и строки запроса исключены. См. [поля и уровни журнала](docs/PROXY.md#журналирование-запросов).
 
-When built with the documentation assets, the Gateway serves the draft
-specification at `/openapi.yaml` and the bundled Swagger UI at `/swagger/`
-(with `/swagger` redirecting there). These
-documentation routes are public and use the Gateway origin, so Swagger UI's
-"Try it out" requests target that Gateway. The UI assets are vendored from
-`swagger-ui-dist` 5.33.1 under `docs/swagger-ui/`, with its license notices.
-The displayed contract remains a draft until the real upstream services are
-verified against their snapshots.
+При сборке с ресурсами документации Gateway отдаёт черновую спецификацию по
+`/openapi.yaml` и встроенный Swagger UI по `/swagger/` (с перенаправлением
+`/swagger` на этот путь). Эти маршруты публичные и используют источник Gateway,
+поэтому запросы Swagger UI через кнопку «Try it out» направляются в этот Gateway.
+Ресурсы интерфейса взяты из `swagger-ui-dist` 5.33.1 и хранятся в
+`docs/swagger-ui/` вместе с уведомлениями о лицензиях. Отображаемый контракт
+остаётся черновиком, пока реальные сервисы не проверены на соответствие снимкам.
 
-For a single-file copy that needs no separate CSS, JavaScript, or YAML files,
-use [docs/swagger-standalone.html](docs/swagger-standalone.html). It contains
-the draft contract with DTO references expanded for local `file://` viewing,
-plus Swagger UI assets. Regenerate it with
-`ruby scripts/build_standalone_swagger.rb`; pass `--check` to check freshness.
-Open it in a browser or publish that one HTML file on a static host. API calls
-from "Try it out" are disabled until the page URL includes
-`?gateway=https://your-gateway-origin`; the target Gateway must be reachable
-from the browser and allow that page's origin if they differ.
+Для копии в одном файле, не требующей отдельных CSS, JavaScript или YAML,
+используйте [docs/swagger-standalone.html](docs/swagger-standalone.html).
+Он содержит черновой контракт с раскрытыми ссылками на DTO для локального
+просмотра через `file://`, а также ресурсы Swagger UI. Пересоберите его командой
+`ruby scripts/build_standalone_swagger.rb`; параметр `--check` проверяет актуальность.
+Откройте файл в браузере или опубликуйте этот HTML-файл на статическом хостинге.
+Вызовы API через «Try it out» отключены, пока URL страницы не содержит
+`?gateway=https://your-gateway-origin`; целевой Gateway должен быть доступен
+из браузера и разрешать источник страницы, если источники различаются.

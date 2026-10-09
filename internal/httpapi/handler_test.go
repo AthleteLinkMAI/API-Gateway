@@ -241,8 +241,12 @@ func TestCorePreflightRunsBeforeAuthentication(t *testing.T) {
 			if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != tc.wantOrigin {
 				t.Errorf("Access-Control-Allow-Origin = %q, want %q", got, tc.wantOrigin)
 			}
-			if got := recorder.Header().Get("Access-Control-Allow-Credentials"); got != "" {
-				t.Errorf("Access-Control-Allow-Credentials = %q, want empty", got)
+			wantCredentials := ""
+			if tc.wantOrigin != "" {
+				wantCredentials = "true"
+			}
+			if got := recorder.Header().Get("Access-Control-Allow-Credentials"); got != wantCredentials {
+				t.Errorf("Access-Control-Allow-Credentials = %q, want %q", got, wantCredentials)
 			}
 			if tc.path != "/unknown" {
 				vary := strings.Join(recorder.Header().Values("Vary"), ",")
@@ -332,8 +336,12 @@ func TestCoreCORSOnOrdinaryResponses(t *testing.T) {
 			if got := recorder.Header().Get("Access-Control-Allow-Origin"); got != tc.wantOrigin {
 				t.Errorf("Access-Control-Allow-Origin = %q, want %q", got, tc.wantOrigin)
 			}
-			if got := recorder.Header().Get("Access-Control-Allow-Credentials"); got != "" {
-				t.Errorf("Access-Control-Allow-Credentials = %q, want empty", got)
+			wantCredentials := ""
+			if tc.wantOrigin != "" {
+				wantCredentials = "true"
+			}
+			if got := recorder.Header().Get("Access-Control-Allow-Credentials"); got != wantCredentials {
+				t.Errorf("Access-Control-Allow-Credentials = %q, want %q", got, wantCredentials)
 			}
 			if got := strings.Join(recorder.Header().Values("Vary"), ","); !strings.Contains(got, "Origin") {
 				t.Errorf("Vary = %q, want Origin", got)

@@ -1,30 +1,29 @@
 openapi: 3.1.0
 info:
-  title: OpenAPI definition
+  title: "Определение OpenAPI"
   version: v0
 servers:
 - url: http://localhost:8081
-  description: Generated server url
+  description: "Сгенерированный URL сервера"
 tags:
-- name: Activity requests
-  description: "Create requests, manage participants and registration, and start matches"
-- name: Sports
-  description: Read the sports and player limits available for activity requests
-- name: Round results
-  description: Organizer-submitted round outcomes and request completion
+- name: "Заявки на игры"
+  description: "Создание заявок, управление участниками и регистрацией, запуск матчей"
+- name: "Виды спорта"
+  description: "Просмотр доступных видов спорта и ограничений числа игроков для заявок"
+- name: "Результаты раундов"
+  description: "Результаты раундов, отправленные организатором, и завершение заявки"
 paths:
   /requests/{id}:
     get:
       tags:
-      - Activity requests
-      summary: Get request details
-      description: "Returns the request, current registration state and participant\
-        \ list."
+      - "Заявки на игры"
+      summary: "Получить подробности заявки"
+      description: "Возвращает заявку, текущее состояние регистрации и список участников."
       operationId: getRequestDetails
       parameters:
       - name: id
         in: path
-        description: Request UUID
+        description: "UUID заявки"
         required: true
         schema:
           type: string
@@ -32,42 +31,40 @@ paths:
         example: 123e4567-e89b-12d3-a456-426614174000
       responses:
         "200":
-          description: Request details retrieved successfully
+          description: "Подробности заявки успешно получены"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ActivityRequestDetailsDto"
         "400":
-          description: Malformed request UUID
+          description: "Некорректный UUID заявки"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Request not found
+          description: "Заявка не найдена"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
     put:
       tags:
-      - Activity requests
-      summary: Edit activity request
-      description: The organizer updates a planned request. The new capacity must
-        fit current participants and stay within the sport's limits.
+      - "Заявки на игры"
+      summary: "Изменить заявку на игру"
+      description: "Организатор изменяет запланированную заявку. Новая вместимость должна учитывать текущих участников и оставаться в пределах ограничений вида спорта."
       operationId: updateRequest
       parameters:
       - name: id
         in: path
-        description: UUID of the request
+        description: "UUID заявки"
         required: true
         schema:
           type: string
           format: uuid
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: "UUID вызывающего пользователя. Core Service сейчас не аутентифицирует этот заголовок."
         required: true
         schema:
           type: string
@@ -80,31 +77,31 @@ paths:
         required: true
       responses:
         "200":
-          description: Updated request details
+          description: "Обновлённые подробности заявки"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ActivityRequestDetailsDto"
         "400":
-          description: Invalid request data or capacity outside sport limits
+          description: "Некорректные данные заявки или вместимость вне ограничений вида спорта"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: Caller is not the organizer
+          description: "Вызывающий пользователь не является организатором"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Request not found
+          description: "Заявка не найдена"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: Request is not planned or capacity is below joined player count
+          description: "Заявка не запланирована или вместимость меньше числа присоединившихся игроков"
           content:
             '*/*':
               schema:
@@ -112,15 +109,14 @@ paths:
   /requests:
     get:
       tags:
-      - Activity requests
-      summary: Geo-search for requests
-      description: "Returns future planned requests with open registration within\
-        \ the search radius, ordered by distance. Sport and date filters are optional."
+      - "Заявки на игры"
+      summary: "Поиск заявок по местоположению"
+      description: "Возвращает будущие запланированные заявки с открытой регистрацией в радиусе поиска, упорядоченные по расстоянию. Фильтры вида спорта и даты необязательны."
       operationId: searchNearbyRequests
       parameters:
       - name: lat
         in: query
-        description: Latitude
+        description: "Широта"
         required: true
         schema:
           type: number
@@ -130,7 +126,7 @@ paths:
         example: 55.7558
       - name: lon
         in: query
-        description: Longitude
+        description: "Долгота"
         required: true
         schema:
           type: number
@@ -140,7 +136,7 @@ paths:
         example: 37.6173
       - name: radius
         in: query
-        description: Radius of search in meters
+        description: "Радиус поиска в метрах"
         required: false
         schema:
           type: number
@@ -150,7 +146,7 @@ paths:
         example: 5000
       - name: sportId
         in: query
-        description: Filter by sport type (optional)
+        description: "Фильтр по виду спорта (необязательный)"
         required: false
         schema:
           type: integer
@@ -158,7 +154,7 @@ paths:
         example: 1
       - name: startDate
         in: query
-        description: Begin of time window (ISO-8601)
+        description: "Начало временного интервала (ISO-8601)"
         required: false
         schema:
           type: string
@@ -166,7 +162,7 @@ paths:
         example: 2026-09-10T10:00:00Z
       - name: endDate
         in: query
-        description: End of time window (ISO-8601)
+        description: "Конец временного интервала (ISO-8601)"
         required: false
         schema:
           type: string
@@ -174,7 +170,7 @@ paths:
         example: 2026-09-12T22:00:00Z
       responses:
         "200":
-          description: "Nearby requests, possibly empty"
+          description: "Заявки поблизости; список может быть пустым"
           content:
             '*/*':
               schema:
@@ -182,23 +178,21 @@ paths:
                 items:
                   $ref: "#/components/schemas/ActivityRequestFeedDto"
         "400":
-          description: "Invalid coordinates, radius or date range"
+          description: "Некорректные координаты, радиус или диапазон дат"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
     post:
       tags:
-      - Activity requests
-      summary: Create an activity request
-      description: Creates a planned request and adds its organizer as the first accepted
-        participant. The player limit must be within the selected sport's bounds.
+      - "Заявки на игры"
+      summary: "Создать заявку на игру"
+      description: "Создаёт запланированную заявку и добавляет её организатора первым принятым участником. Лимит игроков должен быть в пределах ограничений выбранного вида спорта."
       operationId: createRequest
       parameters:
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: "UUID вызывающего пользователя. Core Service сейчас не аутентифицирует этот заголовок."
         required: true
         schema:
           type: string
@@ -211,7 +205,7 @@ paths:
         required: true
       responses:
         "201":
-          description: Request created; response contains requestId
+          description: "Заявка создана; ответ содержит requestId"
           content:
             '*/*':
               schema:
@@ -220,13 +214,13 @@ paths:
                   type: string
                   format: uuid
         "400":
-          description: Invalid request data or player limit
+          description: "Некорректные данные заявки или лимит игроков"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Sport not found
+          description: "Вид спорта не найден"
           content:
             '*/*':
               schema:
@@ -234,24 +228,21 @@ paths:
   /requests/{requestId}/rounds/{roundNumber}/result:
     post:
       tags:
-      - Round results
-      summary: Record a round result
-      description: "The organizer records equal-sized, non-empty winner and loser\
-        \ groups from accepted participants. A round result is immutable and can be\
-        \ recorded only while the request is active. Rating calculation is not performed\
-        \ by Core Service."
+      - "Результаты раундов"
+      summary: "Записать результат раунда"
+      description: "Организатор записывает непустые группы победителей и проигравших одинакового размера из принятых участников. Результат раунда неизменяем и может быть записан только пока заявка активна. Core Service не рассчитывает рейтинг."
       operationId: recordRoundResult
       parameters:
       - name: requestId
         in: path
-        description: Request UUID
+        description: "UUID заявки"
         required: true
         schema:
           type: string
           format: uuid
       - name: roundNumber
         in: path
-        description: "Round number, starting at 1"
+        description: "Номер раунда, начиная с 1"
         required: true
         schema:
           type: integer
@@ -259,8 +250,7 @@ paths:
         example: 1
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: "UUID вызывающего пользователя. Core Service сейчас не аутентифицирует этот заголовок."
         required: true
         schema:
           type: string
@@ -273,31 +263,31 @@ paths:
         required: true
       responses:
         "201":
-          description: Round result recorded
+          description: "Результат раунда записан"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/RoundResultResponseDto"
         "400":
-          description: Invalid round number or player selection
+          description: "Некорректный номер раунда или выбор игроков"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: Caller is not the organizer
+          description: "Вызывающий пользователь не является организатором"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Request not found
+          description: "Заявка не найдена"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: Request is not active or this round already has a result
+          description: "Заявка не активна или результат этого раунда уже есть"
           content:
             '*/*':
               schema:
@@ -305,50 +295,48 @@ paths:
   /requests/{requestId}/complete:
     post:
       tags:
-      - Round results
-      summary: Complete a request
-      description: The organizer completes an active request after results have been
-        recorded for every planned round.
+      - "Результаты раундов"
+      summary: "Завершить заявку"
+      description: "Организатор завершает активную заявку после записи результатов всех запланированных раундов."
       operationId: completeRequest
       parameters:
       - name: requestId
         in: path
-        description: Request UUID
+        description: "UUID заявки"
         required: true
         schema:
           type: string
           format: uuid
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: "UUID вызывающего пользователя. Core Service сейчас не аутентифицирует этот заголовок."
         required: true
         schema:
           type: string
           format: uuid
       responses:
         "204":
-          description: Request completed
+          description: "Заявка завершена"
         "400":
-          description: Malformed request or caller UUID
+          description: "Некорректный UUID заявки или вызывающего пользователя"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: Caller is not the organizer
+          description: "Вызывающий пользователь не является организатором"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Request not found
+          description: "Заявка не найдена"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: Request is not active or some rounds have no result
+          description: "Заявка не активна или для некоторых раундов нет результата"
           content:
             '*/*':
               schema:
@@ -356,50 +344,48 @@ paths:
   /requests/{id}/start:
     post:
       tags:
-      - Activity requests
-      summary: Start a request
-      description: The organizer starts a planned request after the sport's minimum
-        number of players has joined. Registration closes automatically.
+      - "Заявки на игры"
+      summary: "Запустить заявку"
+      description: "Организатор запускает запланированную заявку после присоединения минимального для вида спорта числа игроков. Регистрация закрывается автоматически."
       operationId: startRequest
       parameters:
       - name: id
         in: path
-        description: Request UUID
+        description: "UUID заявки"
         required: true
         schema:
           type: string
           format: uuid
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: "UUID вызывающего пользователя. Core Service сейчас не аутентифицирует этот заголовок."
         required: true
         schema:
           type: string
           format: uuid
       responses:
         "204":
-          description: Request started
+          description: "Заявка запущена"
         "400":
-          description: Malformed request or caller UUID
+          description: "Некорректный UUID заявки или вызывающего пользователя"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: Caller is not the organizer
+          description: "Вызывающий пользователь не является организатором"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Request not found
+          description: "Заявка не найдена"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: Request is not planned or has too few players
+          description: "Заявка не запланирована или игроков слишком мало"
           content:
             '*/*':
               schema:
@@ -407,49 +393,48 @@ paths:
   /requests/{id}/registration/open:
     post:
       tags:
-      - Activity requests
-      summary: Open registration
-      description: The organizer reopens player registration for a planned request.
+      - "Заявки на игры"
+      summary: "Открыть регистрацию"
+      description: "Организатор повторно открывает регистрацию игроков в запланированной заявке."
       operationId: openRegistration
       parameters:
       - name: id
         in: path
-        description: Request UUID
+        description: "UUID заявки"
         required: true
         schema:
           type: string
           format: uuid
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: "UUID вызывающего пользователя. Core Service сейчас не аутентифицирует этот заголовок."
         required: true
         schema:
           type: string
           format: uuid
       responses:
         "204":
-          description: Registration opened
+          description: "Регистрация открыта"
         "400":
-          description: Malformed request or caller UUID
+          description: "Некорректный UUID заявки или вызывающего пользователя"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: Caller is not the organizer
+          description: "Вызывающий пользователь не является организатором"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Request not found
+          description: "Заявка не найдена"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: Request is not planned
+          description: "Заявка не запланирована"
           content:
             '*/*':
               schema:
@@ -457,50 +442,48 @@ paths:
   /requests/{id}/registration/close:
     post:
       tags:
-      - Activity requests
-      summary: Close registration
-      description: The organizer stops accepting new players while the request remains
-        planned. Existing participants remain in the request.
+      - "Заявки на игры"
+      summary: "Закрыть регистрацию"
+      description: "Организатор прекращает приём новых игроков, пока заявка остаётся запланированной. Существующие участники остаются в заявке."
       operationId: closeRegistration
       parameters:
       - name: id
         in: path
-        description: Request UUID
+        description: "UUID заявки"
         required: true
         schema:
           type: string
           format: uuid
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: "UUID вызывающего пользователя. Core Service сейчас не аутентифицирует этот заголовок."
         required: true
         schema:
           type: string
           format: uuid
       responses:
         "204":
-          description: Registration closed
+          description: "Регистрация закрыта"
         "400":
-          description: Malformed request or caller UUID
+          description: "Некорректный UUID заявки или вызывающего пользователя"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: Caller is not the organizer
+          description: "Вызывающий пользователь не является организатором"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Request not found
+          description: "Заявка не найдена"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: Request is not planned
+          description: "Заявка не запланирована"
           content:
             '*/*':
               schema:
@@ -508,15 +491,14 @@ paths:
   /requests/{id}/leave:
     post:
       tags:
-      - Activity requests
-      summary: Leave request
-      description: "An accepted player leaves a planned request, freeing a place.\
-        \ The organizer cannot leave."
+      - "Заявки на игры"
+      summary: "Покинуть заявку"
+      description: "Принятый игрок покидает запланированную заявку, освобождая место. Организатор не может покинуть заявку."
       operationId: leaveRequest
       parameters:
       - name: id
         in: path
-        description: Request UUID
+        description: "UUID заявки"
         required: true
         schema:
           type: string
@@ -524,29 +506,28 @@ paths:
         example: 123e4567-e89b-12d3-a456-426614174000
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: "UUID вызывающего пользователя. Core Service сейчас не аутентифицирует этот заголовок."
         required: true
         schema:
           type: string
           format: uuid
       responses:
         "200":
-          description: Player left the request
+          description: "Игрок покинул заявку"
         "400":
-          description: Malformed request or caller UUID
+          description: "Некорректный UUID заявки или вызывающего пользователя"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Request or participant not found
+          description: "Заявка или участник не найдены"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: Request is not planned or player cannot leave
+          description: "Заявка не запланирована или игрок не может её покинуть"
           content:
             '*/*':
               schema:
@@ -554,57 +535,55 @@ paths:
   /requests/{id}/kick/{targetUserId}:
     post:
       tags:
-      - Activity requests
-      summary: Kick a participant
-      description: The organizer kicks an accepted player from a planned request.
-        The player cannot rejoin this request.
+      - "Заявки на игры"
+      summary: "Исключить участника"
+      description: "Организатор исключает принятого игрока из запланированной заявки. Игрок не может повторно присоединиться к этой заявке."
       operationId: kickParticipant
       parameters:
       - name: id
         in: path
-        description: UUID of the request
+        description: "UUID заявки"
         required: true
         schema:
           type: string
           format: uuid
       - name: targetUserId
         in: path
-        description: UUID of the user to kick
+        description: "UUID исключаемого пользователя"
         required: true
         schema:
           type: string
           format: uuid
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: "UUID вызывающего пользователя. Core Service сейчас не аутентифицирует этот заголовок."
         required: true
         schema:
           type: string
           format: uuid
       responses:
         "200":
-          description: Player kicked
+          description: "Игрок исключён"
         "400":
-          description: Organizer attempted to kick themselves
+          description: "Организатор попытался исключить себя"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: Caller is not the organizer
+          description: "Вызывающий пользователь не является организатором"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Request or player not found
+          description: "Заявка или игрок не найдены"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: Request is not planned or player already left or was kicked
+          description: "Заявка не запланирована или игрок уже ушёл либо был исключён"
           content:
             '*/*':
               schema:
@@ -612,15 +591,14 @@ paths:
   /requests/{id}/join:
     post:
       tags:
-      - Activity requests
-      summary: Join request
-      description: Joins a planned request while registration is open and places remain.
-        A player who left may rejoin; a kicked player may not.
+      - "Заявки на игры"
+      summary: "Присоединиться к заявке"
+      description: "Присоединение к запланированной заявке при открытой регистрации и наличии мест. Ушедший игрок может присоединиться повторно; исключённый — не может."
       operationId: joinRequest
       parameters:
       - name: id
         in: path
-        description: Request UUID
+        description: "UUID заявки"
         required: true
         schema:
           type: string
@@ -628,30 +606,28 @@ paths:
         example: 123e4567-e89b-12d3-a456-426614174000
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: "UUID вызывающего пользователя. Core Service сейчас не аутентифицирует этот заголовок."
         required: true
         schema:
           type: string
           format: uuid
       responses:
         "200":
-          description: Player joined
+          description: "Игрок присоединился"
         "400":
-          description: Malformed request data
+          description: "Некорректные данные запроса"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Request not found
+          description: "Заявка не найдена"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: "Registration closed, request full, player already joined or\
-            \ kicked"
+          description: "Регистрация закрыта, мест нет, игрок уже присоединился или был исключён"
           content:
             '*/*':
               schema:
@@ -659,50 +635,48 @@ paths:
   /requests/{id}/cancel:
     post:
       tags:
-      - Activity requests
-      summary: Cancel activity request
-      description: Only the organizer may cancel a planned request. An active or completed
-        request cannot be cancelled.
+      - "Заявки на игры"
+      summary: "Отменить заявку на игру"
+      description: "Только организатор может отменить запланированную заявку. Активную или завершённую заявку отменить нельзя."
       operationId: cancelRequest
       parameters:
       - name: id
         in: path
-        description: UUID of the request
+        description: "UUID заявки"
         required: true
         schema:
           type: string
           format: uuid
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: "UUID вызывающего пользователя. Core Service сейчас не аутентифицирует этот заголовок."
         required: true
         schema:
           type: string
           format: uuid
       responses:
         "200":
-          description: Request cancelled
+          description: "Заявка отменена"
         "400":
-          description: Malformed request or caller UUID
+          description: "Некорректный UUID заявки или вызывающего пользователя"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "403":
-          description: Caller is not the organizer
+          description: "Вызывающий пользователь не является организатором"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Request not found
+          description: "Заявка не найдена"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: Request is not planned
+          description: "Заявка не запланирована"
           content:
             '*/*':
               schema:
@@ -710,13 +684,13 @@ paths:
   /sports:
     get:
       tags:
-      - Sports
-      summary: List available sports
-      description: Returns sports with their minimum and maximum player counts.
+      - "Виды спорта"
+      summary: "Получить список доступных видов спорта"
+      description: "Возвращает виды спорта с минимальным и максимальным числом игроков."
       operationId: getAllSports
       responses:
         "200":
-          description: "Available sports, possibly empty"
+          description: "Доступные виды спорта; список может быть пустым"
           content:
             '*/*':
               schema:
@@ -726,22 +700,21 @@ paths:
   /requests/{requestId}/rounds:
     get:
       tags:
-      - Round results
-      summary: List recorded round results
-      description: "Returns all recorded round results for the request, ordered by\
-        \ round number."
+      - "Результаты раундов"
+      summary: "Получить список записанных результатов раундов"
+      description: "Возвращает все записанные результаты раундов заявки, упорядоченные по номеру раунда."
       operationId: getRoundResults
       parameters:
       - name: requestId
         in: path
-        description: Request UUID
+        description: "UUID заявки"
         required: true
         schema:
           type: string
           format: uuid
       responses:
         "200":
-          description: "Recorded results, possibly empty"
+          description: "Записанные результаты; список может быть пустым"
           content:
             '*/*':
               schema:
@@ -749,13 +722,13 @@ paths:
                 items:
                   $ref: "#/components/schemas/RoundResultResponseDto"
         "400":
-          description: Malformed request UUID
+          description: "Некорректный UUID заявки"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Request not found
+          description: "Заявка не найдена"
           content:
             '*/*':
               schema:
@@ -764,34 +737,34 @@ components:
   schemas:
     UpdateActivityRequestDto:
       type: object
-      description: Data for updating an existing activity request
+      description: "Данные для изменения существующей заявки на игру"
       properties:
         title:
           type: string
-          description: Updated title
+          description: "Обновлённое название"
           example: Friendly football match - new time
           maxLength: 100
           minLength: 0
         description:
           type: string
-          description: Updated description
+          description: "Обновлённое описание"
           example: Meeting at the GUK (3rd building)
         eventDate:
           type: string
           format: date-time
-          description: Updated event date and time (must be in the future)
+          description: "Обновлённые дата и время события (должны быть в будущем)"
           example: 2030-06-16T19:00:00Z
         numberOfRounds:
           type: integer
           format: int32
-          description: Updated number of rounds
+          description: "Обновлённое число раундов"
           example: 3
           maximum: 10
           minimum: 1
         maxPlayers:
           type: integer
           format: int32
-          description: Updated maximum number of players
+          description: "Обновлённое максимальное число игроков"
           example: 12
           minimum: 2
       required:
@@ -801,79 +774,79 @@ components:
       - title
     ApiError:
       type: object
-      description: Error returned by the Core Service API
+      description: "Ошибка, возвращаемая API Core Service"
       properties:
         code:
           type: string
-          description: Stable machine-readable error category
+          description: "Стабильная машиночитаемая категория ошибки"
           example: VALIDATION_ERROR
         message:
           type: string
-          description: Human-readable explanation
+          description: "Объяснение для человека"
           example: Request body validation failed
         details:
           type: object
           additionalProperties:
             type: string
-          description: Field or parameter validation errors; empty for other errors
+          description: "Ошибки проверки полей или параметров; пусто для других ошибок"
     ActivityRequestDetailsDto:
       type: object
-      description: Detailed information about request room
+      description: "Подробные сведения о комнате заявки"
       properties:
         id:
           type: string
           format: uuid
-          description: Unique request ID
+          description: "Уникальный ID заявки"
           example: 123e4567-e89b-12d3-a456-426614174000
         title:
           type: string
-          description: Request title
+          description: "Название заявки"
           example: Friendly football match
         description:
           type: string
-          description: Description
+          description: "Описание"
           example: "Outdoor match, bring your own boots"
         sportName:
           type: string
-          description: Sport name
+          description: "Название вида спорта"
           example: Football
         maxPlayers:
           type: integer
           format: int32
-          description: Maximum number of players
+          description: "Максимальное число игроков"
           example: 10
         currentPlayers:
           type: integer
           format: int32
-          description: Current number of accepted players
+          description: "Текущее число принятых игроков"
           example: 4
         eventDate:
           type: string
           format: date-time
-          description: Event start date and time
+          description: "Дата и время начала события"
           example: 2030-06-15T18:00:00Z
         addressText:
           type: string
-          description: Textual address for display in the card
+          description: "Текстовый адрес для отображения в карточке"
           example: "Москва, ул. Константина Царева, 12к1"
         numberOfRounds:
           type: integer
           format: int32
-          description: Planned number of rounds/sets
+          description: "Запланированное число раундов/сетов"
           example: 3
         latitude:
           type: number
           format: double
-          description: Latitude (for map marker)
+          description: "Широта (для отметки на карте)"
           example: 55.715551
         longitude:
           type: number
           format: double
-          description: Longitude (for map marker)
+          description: "Долгота (для отметки на карте)"
           example: 37.554191
         status:
           type: string
-          description: Current lifecycle status of the request
+          description: "Текущий статус жизненного цикла заявки"
           enum:
           - PLANNED
           - ACTIVE
@@ -884,38 +857,37 @@ components:
           example: PLANNED
         registrationOpen:
           type: boolean
-          description: Whether new players can join the request
+          description: "Могут ли новые игроки присоединиться к заявке"
           example: false
         organizerId:
           type: string
           format: uuid
-          description: UUID of the request organizer
+          description: "UUID организатора заявки"
           example: 123e4567-e89b-12d3-a456-426614174002
         participants:
           type: array
-          description: List of all participants in the room
+          description: "Список всех участников комнаты"
           items:
             $ref: "#/components/schemas/ParticipantDto"
     ParticipantDto:
       type: object
-      description: Information about a specific participant in an activity request
+      description: "Сведения о конкретном участнике заявки на игру"
       properties:
         userId:
           type: string
           format: uuid
-          description: Unique identifier of the user (used for linking to their public
-            profile)
+          description: "Уникальный идентификатор пользователя (для ссылки на его публичный профиль)"
           example: 123e4567-e89b-12d3-a456-426614174000
         role:
           type: string
-          description: Role of the user in this specific request
+          description: "Роль пользователя в этой заявке"
           enum:
           - ORGANIZER
           - PLAYER
           example: PLAYER
         status:
           type: string
-          description: Current participation status
+          description: "Текущий статус участия"
           enum:
           - PENDING
           - ACCEPTED
@@ -925,62 +897,62 @@ components:
         joinedAt:
           type: string
           format: date-time
-          description: Timestamp when the user joined the request
+          description: "Время присоединения пользователя к заявке"
           example: 2026-09-03T12:00:00Z
     CreateActivityRequestDto:
       type: object
-      description: Data for creating new request
+      description: "Данные для создания новой заявки"
       properties:
         title:
           type: string
-          description: Title of the activity
+          description: "Название игры"
           example: Friendly football match
           maxLength: 100
           minLength: 0
         description:
           type: string
-          description: Description of the activity
+          description: "Описание игры"
           example: "Outdoor match, bring your own boots"
           maxLength: 500
           minLength: 0
         sportId:
           type: integer
           format: int64
-          description: ID of the sport (from /sports)
+          description: "ID вида спорта (из /sports)"
           example: 2
         maxPlayers:
           type: integer
           format: int32
-          description: Maximum number of players (set up by the organizer)
+          description: "Максимальное число игроков (задаётся организатором)"
           example: 20
         eventDate:
           type: string
           format: date-time
-          description: Future event date and time
+          description: "Будущие дата и время события"
           example: 2030-06-15T18:00:00Z
         numberOfRounds:
           type: integer
           format: int32
-          description: "Number of rounds to record, from 1 to 10"
+          description: "Число раундов для записи, от 1 до 10"
           example: 3
           maximum: 10
           minimum: 1
         addressText:
           type: string
-          description: Address of the activity
+          description: "Адрес игры"
           example: "г. Москва, ул. Константина Царева, 12к1"
           minLength: 1
         latitude:
           type: number
           format: double
-          description: Latitude of the activity location
+          description: "Широта места проведения игры"
           example: 55.7558
           maximum: 90.0
           minimum: -90.0
         longitude:
           type: number
           format: double
-          description: Longitude of the activity location
+          description: "Долгота места проведения игры"
           example: 37.6173
           maximum: 180.0
           minimum: -180.0
@@ -995,19 +967,18 @@ components:
       - title
     RecordRoundResultRequestDto:
       type: object
-      description: "Accepted participants who won or lost one round. Both lists must\
-        \ be non-empty, disjoint and equal in size."
+      description: "Принятые участники, выигравшие или проигравшие один раунд. Оба списка должны быть непустыми, не пересекаться и иметь одинаковый размер."
       properties:
         winners:
           type: array
-          description: UUIDs of the round winners; each player may occur only once
+          description: "UUID победителей раунда; каждый игрок может встречаться только один раз"
           items:
             type: string
             format: uuid
           minItems: 1
         losers:
           type: array
-          description: UUIDs of the round losers; each player may occur only once
+          description: "UUID проигравших в раунде; каждый игрок может встречаться только один раз"
           items:
             type: string
             format: uuid
@@ -1017,124 +988,123 @@ components:
       - winners
     RoundResultResponseDto:
       type: object
-      description: Immutable result recorded for one round of an activity request
+      description: "Неизменяемый результат одного раунда заявки на игру"
       properties:
         id:
           type: string
           format: uuid
-          description: Round result UUID
+          description: "UUID результата раунда"
           example: 123e4567-e89b-12d3-a456-426614174000
         requestId:
           type: string
           format: uuid
-          description: Activity request UUID
+          description: "UUID заявки на игру"
           example: 123e4567-e89b-12d3-a456-426614174001
         roundNumber:
           type: integer
           format: int32
-          description: "Number of this round within the request, starting at 1"
+          description: "Номер раунда в заявке, начиная с 1"
           example: 1
         winners:
           type: array
-          description: UUIDs of players who won this round
+          description: "UUID игроков, выигравших этот раунд"
           items:
             type: string
             format: uuid
         losers:
           type: array
-          description: UUIDs of players who lost this round
+          description: "UUID игроков, проигравших этот раунд"
           items:
             type: string
             format: uuid
         recordedBy:
           type: string
           format: uuid
-          description: UUID of the organizer who recorded the result
+          description: "UUID организатора, записавшего результат"
           example: 123e4567-e89b-12d3-a456-426614174002
         createdAt:
           type: string
           format: date-time
-          description: Time when the result was recorded
+          description: "Время записи результата"
           example: 2030-06-15T18:30:00Z
     SportDto:
       type: object
-      description: Data transfer object representing a sport category available in
-        the system
+      description: "DTO категории вида спорта, доступной в системе"
       properties:
         id:
           type: integer
           format: int64
-          description: Unique identifier of the sport
+          description: "Уникальный идентификатор вида спорта"
           example: 1
         name:
           type: string
-          description: Display name of the sport
+          description: "Отображаемое название вида спорта"
           example: Football
         minPlayers:
           type: integer
           format: int32
-          description: Absolute minimum number of players required for a match
+          description: "Абсолютное минимальное число игроков для матча"
           example: 10
         maxPlayers:
           type: integer
           format: int32
-          description: Absolute maximum number of players allowed for a match
+          description: "Абсолютное максимальное число игроков для матча"
           example: 22
         iconUrl:
           type: string
-          description: Optional URL of the sport icon; may be null
+          description: "Необязательный URL значка вида спорта; может быть null"
     ActivityRequestFeedDto:
       type: object
-      description: Short information about the request to display in the search feed
+      description: "Краткие сведения о заявке для отображения в ленте поиска"
       properties:
         id:
           type: string
           format: uuid
-          description: Unique request ID
+          description: "Уникальный ID заявки"
           example: 123e4567-e89b-12d3-a456-426614174000
         title:
           type: string
-          description: Request title
+          description: "Название заявки"
           example: Friendly football match
         sportName:
           type: string
-          description: Sport name
+          description: "Название вида спорта"
           example: Football
         maxPlayers:
           type: integer
           format: int32
-          description: Maximum number of players
+          description: "Максимальное число игроков"
           example: 10
         currentPlayers:
           type: integer
           format: int32
-          description: Current number of accepted players
+          description: "Текущее число принятых игроков"
           example: 4
         eventDate:
           type: string
           format: date-time
-          description: Event start date and time
+          description: "Дата и время начала события"
           example: 2030-06-15T18:00:00Z
         addressText:
           type: string
-          description: Textual address for display in the card
+          description: "Текстовый адрес для отображения в карточке"
           example: "Москва, ул. Константина Царева, 12к1"
         numberOfRounds:
           type: integer
           format: int32
-          description: Planned number of rounds/sets
+          description: "Запланированное число раундов/сетов"
           example: 3
         registrationOpen:
           type: boolean
-          description: Whether new players can join the request
+          description: "Могут ли новые игроки присоединиться к заявке"
           example: true
         latitude:
           type: number
           format: double
-          description: Latitude (for map marker)
+          description: "Широта (для отметки на карте)"
           example: 55.715551
         longitude:
           type: number
           format: double
-          description: Longitude (for map marker)
+          description: "Долгота (для отметки на карте)"
           example: 37.554191
