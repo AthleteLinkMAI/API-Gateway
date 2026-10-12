@@ -60,6 +60,7 @@ var apiRoutes = [...]routeSpec{
 	{http.MethodPost, "/api/v1/verification/send-password-reset-code", authUpstream, publicAccess},
 	{http.MethodPost, "/api/v1/verification/send-email-verification-code", authUpstream, currentUserAccess},
 	{http.MethodPost, "/api/v1/user/register", authUpstream, publicAccess},
+	{http.MethodGet, "/api/v1/user", authUpstream, authenticatedAccess},
 	{http.MethodGet, "/api/v1/user/me", authUpstream, currentUserAccess},
 	{http.MethodPost, "/api/v1/auth/refresh", authUpstream, publicAccess},
 	{http.MethodPost, "/api/v1/auth/login", authUpstream, publicAccess},
