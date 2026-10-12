@@ -108,6 +108,7 @@ func TestProtectedAuthAndGameOperationsRequireBearer(t *testing.T) {
 		{http.MethodDelete, "/api/v1/session/terminate-all/" + httpTestUserID},
 		{http.MethodDelete, "/api/v1/auth/logout"},
 		{http.MethodGet, "/api/v1/user/me"},
+		{http.MethodGet, "/api/v1/user?userIds=" + otherUser},
 		{http.MethodGet, "/api/v1/results/by-request/" + otherUser},
 		{http.MethodGet, "/api/v1/rank-tiers"},
 		{http.MethodGet, "/api/v1/players/" + otherUser},
@@ -148,8 +149,10 @@ func TestProtectedRoutesUseVerifiedIdentityAndAuthUserID(t *testing.T) {
 		{"Auth other user", http.MethodGet, "/api/v1/session/get-all/" + otherUser, nil, http.StatusForbidden, 0},
 		{"Auth logout", http.MethodDelete, "/api/v1/auth/logout", nil, http.StatusAccepted, 1},
 		{"Auth current user", http.MethodGet, "/api/v1/user/me", nil, http.StatusAccepted, 1},
+		{"Auth user lookup", http.MethodGet, "/api/v1/user?userIds=" + otherUser, nil, http.StatusAccepted, 1},
 		{"Game other player", http.MethodGet, "/api/v1/players/" + otherUser, nil, http.StatusAccepted, 1},
 		{"invalid me token", http.MethodGet, "/api/v1/user/me", auth.ErrInvalidToken, http.StatusUnauthorized, 0},
+		{"invalid user lookup token", http.MethodGet, "/api/v1/user?userIds=" + otherUser, auth.ErrInvalidToken, http.StatusUnauthorized, 0},
 		{"invalid access token", http.MethodDelete, "/api/v1/auth/logout", auth.ErrInvalidToken, http.StatusUnauthorized, 0},
 		{"denylist check unavailable", http.MethodGet, "/api/v1/rank-tiers", auth.ErrCheckUnavailable, http.StatusServiceUnavailable, 0},
 	} {

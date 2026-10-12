@@ -1580,6 +1580,77 @@ paths:
                 format: uuid
       security:
       - BearerAuth: []
+  "/api/v1/user":
+    get:
+      tags:
+      - user-controller
+      operationId: getUsersByUserIds
+      summary: Получить публичные сведения о пользователях по ID
+      description: Дополнение по фрагментам getUsersByUserIds и UserPublicControllerDto,
+        предоставленным пользователем 2026-10-12. Путь /api/v1/user и список userIds
+        через запятую подтверждены пользователем. Поведение работающего Auth не проверено.
+      parameters:
+      - name: userIds
+        in: query
+        required: true
+        style: form
+        explode: false
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Публичные сведения о пользователях, возвращаемые Auth.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  "$ref": "#/components/schemas/Auth_UserPublicControllerDto"
+          headers:
+            X-Request-Id:
+              description: UUID, сгенерированный Gateway для этого запроса.
+              schema:
+                type: string
+                format: uuid
+        '401':
+          description: Gateway отклонил запрос из-за отсутствующего или недействительного
+            токена доступа.
+          headers:
+            X-Request-Id:
+              description: UUID, сгенерированный Gateway для этого запроса.
+              schema:
+                type: string
+                format: uuid
+        '503':
+          description: Gateway не смог завершить проверку списка отозванных токенов
+            доступа.
+          headers:
+            X-Request-Id:
+              description: UUID, сгенерированный Gateway для этого запроса.
+              schema:
+                type: string
+                format: uuid
+        '502':
+          description: Gateway не смог соединиться с целевым сервисом.
+          headers:
+            X-Request-Id:
+              description: UUID, сгенерированный Gateway для этого запроса.
+              schema:
+                type: string
+                format: uuid
+        '504':
+          description: Gateway не дождался ответа целевого сервиса до истечения тайм-аута.
+          headers:
+            X-Request-Id:
+              description: UUID, сгенерированный Gateway для этого запроса.
+              schema:
+                type: string
+                format: uuid
+      security:
+      - BearerAuth: []
   "/api/v1/user/me":
     get:
       tags:
@@ -3530,6 +3601,16 @@ components:
           format: double
           description: Долгота (для отметки на карте)
           example: 37.554191
+    Auth_UserPublicControllerDto:
+      type: object
+      description: Поля Java record UserPublicControllerDto из исходников, предоставленных
+        пользователем 2026-10-12.
+      properties:
+        id:
+          type: string
+          format: uuid
+        username:
+          type: string
     Auth_UserControllerDto:
       type: object
       description: Сейчас это пустой Java record. Этот снимок, проверенный по исходникам,
