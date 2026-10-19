@@ -1,0 +1,139 @@
+name: Run go test
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        required: false
+        type: string
+        default: ""
+      working-directory:
+        required: false
+        type: string
+        default: "."
+      test-packages:
+        required: false
+        type: string
+        default: "./..."
+      coverage-packages:
+        required: false
+        type: string
+        default: ""
+      coverage-threshold:
+        required: false
+        type: number
+        default: 80
+      run-race:
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      coverage:
+        description: "Total statement coverage, e.g. 42.1%"
+        value: ${{ jobs.test.outputs.coverage }}
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    outputs:
+      coverage: ${{ steps.cov.outputs.total }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+          go-version-file: ${{ inputs.working-directory }}/go.mod
+          cache: true
+          cache-dependency-path: ${{ inputs.working-directory }}/go.sum
+
+      - name: Run test
+        id: test
+        continue-on-error: true
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          set -o pipefail
+          RACE_FLAG=""
+          if [ "${{ inputs.run-race }}" = "true" ]; then
+            RACE_FLAG="-race"
+          fi
+          COVERAGE_PACKAGES_FLAG=""
+          if [ -n "${{ inputs.coverage-packages }}" ]; then
+            COVERAGE_PACKAGES_FLAG="-coverpkg=${{ inputs.coverage-packages }}"
+          fi
+          go test -v $RACE_FLAG $COVERAGE_PACKAGES_FLAG -coverprofile=coverage.out -covermode=atomic ${{ inputs.test-packages }} 2>&1 | tee test-output.log
+          go tool cover -html=coverage.out -o coverage.html
+
+      - name: Collect coverage
+        id: cov
+        if: always()
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          total="n/a"
+          if [ -f coverage.out ]; then
+            total=$(go tool cover -func=coverage.out | tail -1 | awk '{print $3}')
+          fi
+          echo "total=$total" >> "$GITHUB_OUTPUT"
+
+      - name: Write job summary
+        if: always()
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          {
+            echo "## Tests"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Result | ${{ steps.test.outcome == 'success' && '**passed**' || '**failed**' }} |"
+            echo "| Coverage | \`${{ steps.cov.outputs.total }}\` |"
+            if [ -n "${{ inputs.coverage-packages }}" ]; then
+              echo "| Coverage packages | \`${{ inputs.coverage-packages }}\` |"
+            else
+              echo "| Coverage packages | default |"
+            fi
+            echo "| Race detector | \`${{ inputs.run-race }}\` |"
+            echo
+            if [ -f test-output.log ] && grep -q '^--- FAIL' test-output.log; then
+              echo "### Failures"
+              echo
+              echo '```'
+              grep -B2 -A12 '^--- FAIL' test-output.log | head -200
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage-report-${{ github.run_id }}
+          path: |
+            ${{ inputs.working-directory }}/coverage.html
+            ${{ inputs.working-directory }}/coverage.out
+            ${{ inputs.working-directory }}/test-output.log
+          retention-days: 5
+          if-no-files-found: warn
+
+      - name: Enforce coverage threshold
+        if: steps.test.outcome == 'success'
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          total="${{ steps.cov.outputs.total }}"
+          threshold="${{ inputs.coverage-threshold }}"
+          if [ "$total" = "n/a" ]; then
+            echo "Coverage could not be calculated"
+            exit 1
+          fi
+
+          coverage_value="${total%\%}"
+          if ! awk -v coverage="$coverage_value" -v threshold="$threshold" \
+            'BEGIN { exit (coverage + 0 >= threshold + 0) ? 0 : 1 }'; then
+            echo "Coverage ${total} is below the required threshold ${threshold}%"
+            exit 1
+          fi
+
+      - name: Fail job if tests failed
+        if: steps.test.outcome == 'failure'
+        run: exit 1
