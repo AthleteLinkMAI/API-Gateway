@@ -36,6 +36,7 @@ type routeMatch struct {
 }
 
 var apiRoutes = [...]routeSpec{
+	{http.MethodGet, "/api/v1/requests/users/{userId}", coreUpstream, authenticatedAccess},
 	{http.MethodGet, "/api/v1/requests/{id}", coreUpstream, authenticatedAccess},
 	{http.MethodPut, "/api/v1/requests/{id}", coreUpstream, authenticatedAccess},
 	{http.MethodGet, "/api/v1/requests", coreUpstream, authenticatedAccess},
