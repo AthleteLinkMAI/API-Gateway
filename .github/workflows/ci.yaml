@@ -1,0 +1,77 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: ./.github/workflows/go-lint.yaml
+    with:
+      working-directory: .
+      only-new-issues: false
+
+  test:
+    uses: ./.github/workflows/go-test.yaml
+    with:
+      working-directory: .
+      coverage-packages: "./cmd/gateway,./internal/auth,./internal/config,./internal/httpapi,./internal/proxy,./internal/server"
+      run-race: true
+
+  pr-report:
+    needs: [lint, test]
+    if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Upsert PR comment
+        uses: actions/github-script@v7
+        env:
+          LINT_RESULT: ${{ needs.lint.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          COVERAGE: ${{ needs.test.outputs.coverage || 'n/a' }}
+        with:
+          script: |
+            const marker = '<!-- backend-ci-report -->';
+            const icon = r => r === 'success' ? '✅' : r === 'failure' ? '❌' : '⚪';
+            const { LINT_RESULT, TEST_RESULT, COVERAGE } = process.env;
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+
+            const body = [
+              marker,
+              '### Backend CI',
+              '',
+              '| Check | Status |',
+              '|---|---|',
+              `| Lint | ${icon(LINT_RESULT)} ${LINT_RESULT} |`,
+              `| Tests | ${icon(TEST_RESULT)} ${TEST_RESULT} |`,
+              `| Coverage | \`${COVERAGE}\` |`,
+              '',
+              `[Full logs and step summaries](${runUrl}) · commit \`${context.payload.pull_request.head.sha.slice(0, 7)}\``,
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              ...context.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(c => (c.body || '').includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
+            }

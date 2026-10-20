@@ -19,7 +19,9 @@ func newDocumentationHandler() http.Handler {
 		w.Header().Set("Content-Type", "application/yaml; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
-		_, _ = w.Write(docs.GatewayOpenAPI)
+		if _, err := w.Write(docs.GatewayOpenAPI); err != nil {
+			return
+		}
 	})
 	mux.HandleFunc("GET /swagger", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/swagger/", http.StatusMovedPermanently)

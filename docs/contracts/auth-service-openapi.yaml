@@ -1,25 +1,21 @@
 openapi: 3.1.0
 info:
-  title: AtheleteLink Auth Service
-  description: "Authentication, verification, session and user management"
+  title: "AtheleteLink — сервис аутентификации"
+  description: "Аутентификация, верификация, управление сессиями и пользователями"
   license:
     name: MIT License
   version: 0.0.1
 servers:
 - url: http://localhost:8080
-  description: Generated server url
+  description: "Сгенерированный URL сервера"
 paths:
   /user/me/{userId}:
     get:
       tags:
       - user-controller
       operationId: me
-      summary: Get user information
-      description: >-
-        Source-reviewed addition from UserController.me(UUID). The current
-        UserControllerDto is empty and UserMapper does not copy the service DTO
-        fields. Response fields require an Auth implementation and snapshot update;
-        runtime behavior has not been verified.
+      summary: "Получить сведения о пользователе"
+      description: "Дополнение из UserController.me(UUID), проверенное по исходникам. Текущий UserControllerDto пуст, а UserMapper не копирует поля DTO сервиса. Для полей ответа нужны реализация в Auth и обновление снимка; поведение работающего сервиса не проверено."
       parameters:
       - name: userId
         in: path
@@ -29,7 +25,7 @@ paths:
           format: uuid
       responses:
         "200":
-          description: User information returned by Auth; the current controller DTO is empty.
+          description: "Сведения о пользователе, возвращаемые Auth; текущий DTO контроллера пуст."
           content:
             application/json:
               schema:
@@ -54,7 +50,7 @@ paths:
         required: true
       responses:
         "200":
-          description: OK
+          description: "Успешно"
   /user/change-password/{userId}:
     put:
       tags:
@@ -75,7 +71,7 @@ paths:
         required: true
       responses:
         "200":
-          description: OK
+          description: "Успешно"
   /user/change-email/{userId}:
     put:
       tags:
@@ -97,7 +93,7 @@ paths:
         required: true
       responses:
         "200":
-          description: OK
+          description: "Успешно"
   /verification/verify-password-reset:
     post:
       tags:
@@ -111,7 +107,7 @@ paths:
         required: true
       responses:
         "200":
-          description: OK
+          description: "Успешно"
   /verification/verify-email/{userId}:
     post:
       tags:
@@ -132,7 +128,7 @@ paths:
         required: true
       responses:
         "200":
-          description: OK
+          description: "Успешно"
           content:
             '*/*':
               schema:
@@ -151,7 +147,7 @@ paths:
         required: true
       responses:
         "200":
-          description: OK
+          description: "Успешно"
   /verification/send-email-verification-code/{userId}:
     post:
       tags:
@@ -166,7 +162,7 @@ paths:
           format: uuid
       responses:
         "200":
-          description: OK
+          description: "Успешно"
   /user/register:
     post:
       tags:
@@ -180,7 +176,7 @@ paths:
         required: true
       responses:
         "200":
-          description: OK
+          description: "Успешно"
   /auth/refresh:
     post:
       tags:
@@ -194,7 +190,7 @@ paths:
           type: string
       responses:
         "200":
-          description: OK
+          description: "Успешно"
           content:
             '*/*':
               schema:
@@ -212,7 +208,7 @@ paths:
         required: true
       responses:
         "200":
-          description: OK
+          description: "Успешно"
           content:
             '*/*':
               schema:
@@ -231,7 +227,7 @@ paths:
           format: uuid
       responses:
         "200":
-          description: OK
+          description: "Успешно"
           content:
             '*/*':
               schema:
@@ -245,7 +241,7 @@ paths:
       operationId: health
       responses:
         "200":
-          description: OK
+          description: "Успешно"
   /user/delete/{userId}:
     delete:
       tags:
@@ -260,7 +256,7 @@ paths:
           format: uuid
       responses:
         "200":
-          description: OK
+          description: "Успешно"
   /session/terminate/{userId}:
     delete:
       tags:
@@ -282,7 +278,7 @@ paths:
         required: true
       responses:
         "200":
-          description: OK
+          description: "Успешно"
   /session/terminate-all/{userId}:
     delete:
       tags:
@@ -297,7 +293,7 @@ paths:
           format: uuid
       responses:
         "200":
-          description: OK
+          description: "Успешно"
   /auth/logout:
     delete:
       tags:
@@ -311,14 +307,12 @@ paths:
           type: string
       responses:
         "200":
-          description: OK
+          description: "Успешно"
 components:
   schemas:
     UserControllerDto:
       type: object
-      description: >-
-        Currently an empty Java record. No user fields are promised by this
-        source-reviewed snapshot until Auth's DTO and mapper are completed.
+      description: "Сейчас это пустой Java record. Этот снимок, проверенный по исходникам, не гарантирует поля пользователя до завершения DTO и маппера Auth."
     UserUpdateControllerDto:
       type: object
       properties:

@@ -32,6 +32,9 @@ go.work.sum
 # .idea/
 # .vscode/
 
+# System files
+.DS_Store
+
 # Documentation
 docs/tasks
 

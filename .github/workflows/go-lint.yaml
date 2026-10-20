@@ -1,0 +1,72 @@
+name: Lint Go
+
+on:
+  workflow_call:
+    inputs:
+      go-version:
+        required: false
+        type: string
+        default: ""
+      working-directory:
+        required: false
+        type: string
+        default: "."
+      config-path:
+        required: false
+        type: string
+        default: ".golangci.yaml"
+      fail-on-error:
+        required: false
+        type: boolean
+        default: true
+      only-new-issues:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: ${{ inputs.only-new-issues && 0 || 1 }}
+
+      - name: Setup go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go-version }}
+          go-version-file: ${{ inputs.working-directory }}/go.mod
+          cache: false
+
+      - name: Run golangci-lint
+        id: lint
+        continue-on-error: true
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.13.2
+          working-directory: ${{ inputs.working-directory }}
+          args: --config=${{ github.workspace }}/${{ inputs.config-path }} --timeout=5m --verbose
+          only-new-issues: ${{ inputs.only-new-issues }}
+
+      - name: Write job summary
+        if: always()
+        run: |
+          {
+            echo "## Lint"
+            echo
+            echo "| | |"
+            echo "|---|---|"
+            echo "| Result | ${{ steps.lint.outcome == 'success' && '**passed**' || '**failed**' }} |"
+            echo "| Config | \`${{ inputs.config-path }}\` |"
+            echo "| Only new issues | \`${{ inputs.only-new-issues }}\` |"
+            echo
+            if [ "${{ steps.lint.outcome }}" != "success" ]; then
+              echo "Issues are annotated inline on the changed lines — see the **Files changed** tab of the PR."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fail job if lint failed
+        if: steps.lint.outcome == 'failure' && inputs.fail-on-error
+        run: exit 1

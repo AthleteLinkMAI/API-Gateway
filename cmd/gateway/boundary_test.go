@@ -49,7 +49,7 @@ func TestCoreProxyTrustedHeaderBoundary(t *testing.T) {
 		w.Header().Set("X-Core-Header", "preserved")
 		w.Header().Set("X-Request-Id", coreID)
 		w.Header().Set("Access-Control-Allow-Origin", coreCORS)
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
+		w.Header().Set("Access-Control-Allow-Credentials", "false")
 		w.Header().Set("Access-Control-Expose-Headers", "X-Core-Header")
 		if r.Header.Get("X-Scenario") == "business-error" {
 			w.WriteHeader(http.StatusConflict)
@@ -203,12 +203,16 @@ func TestCoreProxyTrustedHeaderBoundary(t *testing.T) {
 			if got := strings.Join(resp.Header.Values("Vary"), ","); !strings.Contains(got, "Origin") {
 				t.Errorf("Vary = %q, want Origin", got)
 			}
-			for _, name := range []string{
-				"Access-Control-Allow-Credentials", "Access-Control-Expose-Headers",
-			} {
-				if values := resp.Header.Values(name); len(values) != 0 {
-					t.Errorf("Core controlled client %s: %q", name, values)
+			credentials := resp.Header.Values("Access-Control-Allow-Credentials")
+			if tc.wantOrigin != "" {
+				if len(credentials) != 1 || credentials[0] != "true" {
+					t.Errorf("Access-Control-Allow-Credentials = %q, want only Gateway true", credentials)
 				}
+			} else if len(credentials) != 0 {
+				t.Errorf("Core credentials header leaked: %q", credentials)
+			}
+			if values := resp.Header.Values("Access-Control-Expose-Headers"); len(values) != 0 {
+				t.Errorf("Core controlled client Access-Control-Expose-Headers: %q", values)
 			}
 		})
 	}
@@ -238,8 +242,8 @@ func TestCoreProxyTrustedHeaderBoundary(t *testing.T) {
 		if got := strings.Join(resp.Header.Values("Vary"), ","); !strings.Contains(got, "Origin") {
 			t.Errorf("Vary = %q, want Origin", got)
 		}
-		if got := resp.Header.Get("Access-Control-Allow-Credentials"); got != "" {
-			t.Errorf("Access-Control-Allow-Credentials = %q, want empty", got)
+		if got := resp.Header.Get("Access-Control-Allow-Credentials"); got != "true" {
+			t.Errorf("Access-Control-Allow-Credentials = %q, want true", got)
 		}
 		if got := resp.Header.Get("X-Request-Id"); got == "" {
 			t.Error("Gateway error has no X-Request-Id")

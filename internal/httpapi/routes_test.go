@@ -50,6 +50,7 @@ func TestAllServiceOperationRoutes(t *testing.T) {
 		{http.MethodPost, "/api/v1/verification/send-password-reset-code", "auth"},
 		{http.MethodPost, "/api/v1/verification/send-email-verification-code", "auth"},
 		{http.MethodPost, "/api/v1/user/register", "auth"},
+		{http.MethodGet, "/api/v1/user", "auth"},
 		{http.MethodGet, "/api/v1/user/me", "auth"},
 		{http.MethodPost, "/api/v1/auth/refresh", "auth"},
 		{http.MethodPost, "/api/v1/auth/login", "auth"},
@@ -67,8 +68,8 @@ func TestAllServiceOperationRoutes(t *testing.T) {
 		{http.MethodGet, "/api/v1/players/" + userID + "/matches", "game"},
 		{http.MethodGet, "/api/v1/leaderboards/7", "game"},
 	}
-	if len(tests) != 39 {
-		t.Fatalf("operation cases = %d, want 39", len(tests))
+	if len(tests) != 40 {
+		t.Fatalf("operation cases = %d, want 40", len(tests))
 	}
 
 	for _, tc := range tests {
@@ -122,6 +123,9 @@ func TestAuthAndGameRouteBoundaries(t *testing.T) {
 	for _, path := range []string{
 		"/api/v1/health",
 		"/api/v1/auth/unknown",
+		"/user",
+		"/api/v1/user/",
+		"/api/v1/user/123",
 		"/api/v1/user/update-user/",
 		"/api/v1/user/update-user/123",
 		"/api/v1/user/change-password/123",
@@ -168,6 +172,8 @@ func TestAuthAndGamePreflightChecksDeclaredMethod(t *testing.T) {
 		{"/api/v1/players", http.MethodGet, http.StatusNoContent, ""},
 		{"/api/v1/players/", http.MethodGet, http.StatusNoContent, ""},
 		{"/api/v1/user/me", http.MethodGet, http.StatusNoContent, ""},
+		{"/api/v1/user", http.MethodGet, http.StatusNoContent, ""},
+		{"/api/v1/user", http.MethodPost, http.StatusMethodNotAllowed, http.MethodGet},
 		{"/api/v1/user/me/123", http.MethodGet, http.StatusNotFound, ""},
 		{"/api/v1/requests", http.MethodGet, http.StatusNoContent, ""},
 		{"/api/v1/requests", http.MethodPost, http.StatusNoContent, ""},

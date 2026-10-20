@@ -69,7 +69,7 @@ func TestDocumentationRoutesHaveExplicitBoundaries(t *testing.T) {
 	}
 }
 
-func TestDocumentationIncludesCurrentUserOperations(t *testing.T) {
+func TestDocumentationIncludesUserOperations(t *testing.T) {
 	t.Parallel()
 	handler := newHealthHandler(&httpapi.Readiness{}, healthyDependency)
 	response := serveRequest(handler, http.MethodGet, "/openapi.yaml")
@@ -78,10 +78,14 @@ func TestDocumentationIncludesCurrentUserOperations(t *testing.T) {
 		t.Error("embedded contract must expose only the ID-less me route")
 	}
 	for _, operation := range []string{
-		"me", "getCurrentPlayerSummary", "getCurrentPlayerSummaryTrailingSlash",
+		"me", "getUsersByUserIds", "getCurrentPlayerSummary", "getCurrentPlayerSummaryTrailingSlash",
 	} {
 		if !strings.Contains(response.Body.String(), "operationId: "+operation) {
 			t.Errorf("embedded contract lacks %s", operation)
 		}
+	}
+	if !strings.Contains(contract, "  \"/api/v1/user\":\n") ||
+		!strings.Contains(contract, "#/components/schemas/Auth_UserPublicControllerDto") {
+		t.Error("embedded contract lacks the user lookup route or public user response schema")
 	}
 }
