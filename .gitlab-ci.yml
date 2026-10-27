@@ -1,0 +1,77 @@
+stages:
+  - test
+  - build
+  - deploy
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == "main"
+
+variables:
+  DOCKERHUB_USER: kekishev
+  DOCKERHUB_REPOSITORY_NAME: athlete-link-api-gateway
+  IMAGE_NAME: $DOCKERHUB_USER/$DOCKERHUB_REPOSITORY_NAME
+
+test-job:
+  stage: test
+  image: golang:1.27.1
+  variables:
+    GOMODCACHE: $CI_PROJECT_DIR/.go/pkg/mod
+    GOCACHE: $CI_PROJECT_DIR/.go/build-cache
+  cache:
+    key:
+      files:
+        - go.sum
+    paths:
+      - .go/
+  script:
+    - go test ./...
+
+.docker_template:
+  services:
+    - docker:27-dind
+  variables:
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_TLS_CERTDIR: ""
+  before_script:
+    - docker -v
+    - docker info
+    - echo "$DOCKERHUB_PASSWORD" | docker login docker.io -u "$DOCKERHUB_LOGIN" --password-stdin
+
+build-job:
+  image: docker:27
+  stage: build
+  extends: .docker_template
+  script:
+    - docker build --pull -t "$IMAGE_NAME:$CI_COMMIT_SHORT_SHA" -t "$IMAGE_NAME:latest" .
+    - docker push "$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
+    - docker push "$IMAGE_NAME:latest"
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+
+.deploy_template:
+  before_script:
+    - mkdir -p ~/.ssh
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/id_ed25519
+    - >-
+      echo -e "Host *\n  StrictHostKeyChecking no\n  UserKnownHostsFile
+      /dev/null" > ~/.ssh/config
+    - chmod 600 ~/.ssh/id_ed25519
+
+deploy-job:
+  image: docker:27
+  stage: deploy
+  extends: .deploy_template
+  script:
+    - ssh -i ~/.ssh/id_ed25519 root@$SSH_REMOTE_HOST "
+      cd /root/projects/athletelink &&
+      docker stop  athletelink-backend-api-gateway-1 || true &&
+      docker rm    athletelink-backend-api-gateway-1 || true &&
+      docker image rm $IMAGE_NAME:latest || true &&
+      docker compose up -d
+      "
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      when: manual
+      allow_failure: true
