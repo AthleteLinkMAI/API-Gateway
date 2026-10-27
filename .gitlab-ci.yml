@@ -37,16 +37,15 @@ test-job:
   before_script:
     - docker -v
     - docker info
-    - echo "$DOCKERHUB_PASSWORD" | docker login docker.io -u "$DOCKERHUB_LOGIN" --password-stdin
+    - docker login docker.io -u "$DOCKERHUB_LOGIN" -p "$DOCKERHUB_PASSWORD"
 
 build-job:
   image: docker:27
   stage: build
   extends: .docker_template
   script:
-    - docker build --pull -t "$IMAGE_NAME:$CI_COMMIT_SHORT_SHA" -t "$IMAGE_NAME:latest" .
-    - docker push "$IMAGE_NAME:$CI_COMMIT_SHORT_SHA"
-    - docker push "$IMAGE_NAME:latest"
+    - docker build --pull -t $IMAGE_NAME:latest .
+    - docker push $IMAGE_NAME:latest
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
 
