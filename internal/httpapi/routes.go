@@ -51,7 +51,6 @@ var apiRoutes = [...]routeSpec{
 	{http.MethodPost, "/api/v1/requests/{id}/join", coreUpstream, authenticatedAccess},
 	{http.MethodPost, "/api/v1/requests/{id}/cancel", coreUpstream, authenticatedAccess},
 	{http.MethodGet, "/api/v1/sports", coreUpstream, authenticatedAccess},
-	{http.MethodGet, "/api/v1/requests/{requestId}/rounds", coreUpstream, authenticatedAccess},
 
 	{http.MethodPut, "/api/v1/user/update-user", authUpstream, currentUserAccess},
 	{http.MethodPut, "/api/v1/user/change-password", authUpstream, currentUserAccess},
@@ -74,6 +73,9 @@ var apiRoutes = [...]routeSpec{
 	{http.MethodGet, "/api/v1/results/by-request/{activityRequestId}", gameUpstream, authenticatedAccess},
 	{http.MethodGet, "/api/v1/rank-tiers", gameUpstream, authenticatedAccess},
 	{http.MethodGet, "/api/v1/players/{userId}", gameUpstream, authenticatedAccess},
+	{http.MethodGet, "/api/v1/players/{userId}/other-sports", gameUpstream, authenticatedAccess},
+	{http.MethodGet, "/api/v1/players/{userId}/last-game", gameUpstream, authenticatedAccess},
+	{http.MethodGet, "/api/v1/players/{userId}/best-sport", gameUpstream, authenticatedAccess},
 	{http.MethodGet, "/api/v1/players", gameUpstream, authenticatedAccess},
 	{http.MethodGet, "/api/v1/players/", gameUpstream, authenticatedAccess},
 	{http.MethodGet, "/api/v1/players/{userId}/sports/{sportId}", gameUpstream, authenticatedAccess},
