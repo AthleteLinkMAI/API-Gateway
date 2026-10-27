@@ -27,6 +27,7 @@ func TestAllServiceOperationRoutes(t *testing.T) {
 		path     string
 		upstream string
 	}{
+		{http.MethodGet, "/api/v1/requests/users/" + userID, "core"},
 		{http.MethodGet, "/api/v1/requests/123", "core"},
 		{http.MethodPut, "/api/v1/requests/123", "core"},
 		{http.MethodGet, "/api/v1/requests", "core"},
@@ -41,7 +42,6 @@ func TestAllServiceOperationRoutes(t *testing.T) {
 		{http.MethodPost, "/api/v1/requests/123/join", "core"},
 		{http.MethodPost, "/api/v1/requests/123/cancel", "core"},
 		{http.MethodGet, "/api/v1/sports", "core"},
-		{http.MethodGet, "/api/v1/requests/123/rounds", "core"},
 		{http.MethodPut, "/api/v1/user/update-user", "auth"},
 		{http.MethodPut, "/api/v1/user/change-password", "auth"},
 		{http.MethodPut, "/api/v1/user/change-email", "auth"},
@@ -62,14 +62,17 @@ func TestAllServiceOperationRoutes(t *testing.T) {
 		{http.MethodGet, "/api/v1/results/by-request/" + userID, "game"},
 		{http.MethodGet, "/api/v1/rank-tiers", "game"},
 		{http.MethodGet, "/api/v1/players/" + userID, "game"},
+		{http.MethodGet, "/api/v1/players/" + userID + "/other-sports", "game"},
+		{http.MethodGet, "/api/v1/players/" + userID + "/last-game", "game"},
+		{http.MethodGet, "/api/v1/players/" + userID + "/best-sport", "game"},
 		{http.MethodGet, "/api/v1/players", "game"},
 		{http.MethodGet, "/api/v1/players/", "game"},
 		{http.MethodGet, "/api/v1/players/" + userID + "/sports/7", "game"},
 		{http.MethodGet, "/api/v1/players/" + userID + "/matches", "game"},
 		{http.MethodGet, "/api/v1/leaderboards/7", "game"},
 	}
-	if len(tests) != 40 {
-		t.Fatalf("operation cases = %d, want 40", len(tests))
+	if len(tests) != 43 {
+		t.Fatalf("operation cases = %d, want 43", len(tests))
 	}
 
 	for _, tc := range tests {
@@ -113,7 +116,7 @@ func TestAllServiceOperationRoutes(t *testing.T) {
 	}
 }
 
-func TestAuthAndGameRouteBoundaries(t *testing.T) {
+func TestServiceRouteBoundaries(t *testing.T) {
 	t.Parallel()
 
 	handler := newOperationRoutingHandler(
@@ -121,6 +124,7 @@ func TestAuthAndGameRouteBoundaries(t *testing.T) {
 		http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusAccepted) }),
 	)
 	for _, path := range []string{
+		"/api/v1/requests/123/rounds",
 		"/api/v1/health",
 		"/api/v1/auth/unknown",
 		"/user",
@@ -151,7 +155,7 @@ func TestAuthAndGameRouteBoundaries(t *testing.T) {
 	}
 }
 
-func TestAuthAndGamePreflightChecksDeclaredMethod(t *testing.T) {
+func TestServicePreflightChecksDeclaredMethod(t *testing.T) {
 	t.Parallel()
 
 	calls := 0
@@ -169,6 +173,9 @@ func TestAuthAndGamePreflightChecksDeclaredMethod(t *testing.T) {
 		{"/api/v1/auth/login", http.MethodPost, http.StatusNoContent, ""},
 		{"/api/v1/auth/login", http.MethodGet, http.StatusMethodNotAllowed, http.MethodPost},
 		{"/api/v1/players/123", http.MethodGet, http.StatusNoContent, ""},
+		{"/api/v1/players/123/other-sports", http.MethodGet, http.StatusNoContent, ""},
+		{"/api/v1/players/123/last-game", http.MethodGet, http.StatusNoContent, ""},
+		{"/api/v1/players/123/best-sport", http.MethodGet, http.StatusNoContent, ""},
 		{"/api/v1/players", http.MethodGet, http.StatusNoContent, ""},
 		{"/api/v1/players/", http.MethodGet, http.StatusNoContent, ""},
 		{"/api/v1/user/me", http.MethodGet, http.StatusNoContent, ""},
@@ -181,6 +188,8 @@ func TestAuthAndGamePreflightChecksDeclaredMethod(t *testing.T) {
 		{"/api/v1/requests/123", http.MethodGet, http.StatusNoContent, ""},
 		{"/api/v1/requests/123", http.MethodPut, http.StatusNoContent, ""},
 		{"/api/v1/requests/123", http.MethodPatch, http.StatusMethodNotAllowed, "GET, PUT"},
+		{"/api/v1/requests/users/123", http.MethodGet, http.StatusNoContent, ""},
+		{"/api/v1/requests/123/rounds", http.MethodGet, http.StatusNotFound, ""},
 		{"/api/v1/requests/123/future", http.MethodPost, http.StatusNotFound, ""},
 		{"/api/v1/health", http.MethodGet, http.StatusNotFound, ""},
 	} {

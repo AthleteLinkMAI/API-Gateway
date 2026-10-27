@@ -94,7 +94,7 @@ func TestPublicAuthOperationsBypassAccessVerifier(t *testing.T) {
 	}
 }
 
-func TestProtectedAuthAndGameOperationsRequireBearer(t *testing.T) {
+func TestProtectedServiceOperationsRequireBearer(t *testing.T) {
 	const otherUser = "123e4567-e89b-42d3-a456-426614174099"
 	for _, tc := range []struct{ method, path string }{
 		{http.MethodPut, "/api/v1/user/update-user"},
@@ -112,11 +112,15 @@ func TestProtectedAuthAndGameOperationsRequireBearer(t *testing.T) {
 		{http.MethodGet, "/api/v1/results/by-request/" + otherUser},
 		{http.MethodGet, "/api/v1/rank-tiers"},
 		{http.MethodGet, "/api/v1/players/" + otherUser},
+		{http.MethodGet, "/api/v1/players/" + otherUser + "/other-sports"},
+		{http.MethodGet, "/api/v1/players/" + otherUser + "/last-game"},
+		{http.MethodGet, "/api/v1/players/" + otherUser + "/best-sport"},
 		{http.MethodGet, "/api/v1/players"},
 		{http.MethodGet, "/api/v1/players/"},
 		{http.MethodGet, "/api/v1/players/" + otherUser + "/sports/7"},
 		{http.MethodGet, "/api/v1/players/" + otherUser + "/matches"},
 		{http.MethodGet, "/api/v1/leaderboards/7"},
+		{http.MethodGet, "/api/v1/requests/users/" + otherUser},
 	} {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
 			verifier := &accessRouteVerifier{identity: requestcontext.Identity{UserID: httpTestUserID}}

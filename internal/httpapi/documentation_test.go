@@ -69,7 +69,7 @@ func TestDocumentationRoutesHaveExplicitBoundaries(t *testing.T) {
 	}
 }
 
-func TestDocumentationIncludesUserOperations(t *testing.T) {
+func TestDocumentationIncludesCurrentServiceOperations(t *testing.T) {
 	t.Parallel()
 	handler := newHealthHandler(&httpapi.Readiness{}, healthyDependency)
 	response := serveRequest(handler, http.MethodGet, "/openapi.yaml")
@@ -87,5 +87,18 @@ func TestDocumentationIncludesUserOperations(t *testing.T) {
 	if !strings.Contains(contract, "  \"/api/v1/user\":\n") ||
 		!strings.Contains(contract, "#/components/schemas/Auth_UserPublicControllerDto") {
 		t.Error("embedded contract lacks the user lookup route or public user response schema")
+	}
+	for _, path := range []string{
+		"/api/v1/requests/users/{userId}",
+		"/api/v1/players/{userId}/other-sports",
+		"/api/v1/players/{userId}/last-game",
+		"/api/v1/players/{userId}/best-sport",
+	} {
+		if !strings.Contains(contract, "  \""+path+"\":\n") {
+			t.Errorf("embedded contract lacks %s", path)
+		}
+	}
+	if strings.Contains(contract, "  \"/api/v1/requests/{requestId}/rounds\":\n") {
+		t.Error("embedded contract still exposes the removed round list route")
 	}
 }

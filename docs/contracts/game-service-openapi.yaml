@@ -1,19 +1,19 @@
-openapi: 3.0.1
+openapi: 3.1.0
 info:
-  title: "Определение OpenAPI"
+  title: OpenAPI definition
   version: v0
 servers:
-- url: http://localhost:8082/api/v1
-  description: "Сгенерированный URL сервера"
+- url: http://localhost:8084/api/v1
+  description: Generated server url
 tags:
-- name: "Профили игроков"
-  description: "API для просмотра профилей игроков и истории матчей"
+- name: Player profiles
+  description: API for viewing player profiles and match history
 paths:
   /results/by-request/{activityRequestId}:
     get:
       tags:
-      - "Результаты"
-      summary: "Получить результат по заявке на игру"
+      - Results
+      summary: Get all round results for an activity request in round-number order
       operationId: getByActivityRequest
       parameters:
       - name: activityRequestId
@@ -24,26 +24,30 @@ paths:
           format: uuid
       responses:
         "200":
-          description: "Результат игры успешно получен"
+          description: Round results retrieved successfully
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/GameResultDetailsDto"
+                type: array
+                items:
+                  $ref: "#/components/schemas/RoundResultDetailsDto"
         "404":
-          description: "Результат игры не найден"
+          description: No round results found
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/GameResultDetailsDto"
+                type: array
+                items:
+                  $ref: "#/components/schemas/RoundResultDetailsDto"
   /rank-tiers:
     get:
       tags:
-      - "Ступени рангов"
-      summary: "Получить настроенные пороги рангов"
+      - Rank tiers
+      summary: Get configured rank thresholds
       operationId: getRankTiers
       responses:
         "200":
-          description: "Пороги рангов успешно получены"
+          description: Rank thresholds retrieved successfully
           content:
             '*/*':
               schema:
@@ -53,8 +57,8 @@ paths:
   /players/{userId}:
     get:
       tags:
-      - "Профили игроков"
-      summary: "Получить сводку игрока"
+      - Player profiles
+      summary: Get player summary
       operationId: getSummary
       parameters:
       - name: userId
@@ -65,13 +69,13 @@ paths:
           format: uuid
       responses:
         "200":
-          description: "Сводка успешно получена"
+          description: Summary retrieved successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/PlayerSummaryDto"
         "404":
-          description: "Профиль игрока не найден"
+          description: Player profile not found
           content:
             '*/*':
               schema:
@@ -79,8 +83,8 @@ paths:
   /players/{userId}/sports/{sportId}:
     get:
       tags:
-      - "Профили игроков"
-      summary: "Получить статистику игрока по одному виду спорта"
+      - Player profiles
+      summary: Get player statistics for one sport
       operationId: getSportDetails
       parameters:
       - name: userId
@@ -97,22 +101,52 @@ paths:
           format: int64
       responses:
         "200":
-          description: "Статистика по виду спорта успешно получена"
+          description: Sport statistics retrieved successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/PlayerSportDetailsDto"
         "404":
-          description: "Игрок, вид спорта или статистика не найдены"
+          description: Player or sport statistics not found
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/PlayerSportDetailsDto"
+  /players/{userId}/other-sports:
+    get:
+      tags:
+      - Player profiles
+      summary: Get all player sports except the highest-scoring one
+      operationId: getOtherSports
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: "Other sports retrieved, possibly empty"
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OtherSportDto"
+        "404":
+          description: Player profile not found
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/OtherSportDto"
   /players/{userId}/matches:
     get:
       tags:
-      - "Профили игроков"
-      summary: "Получить историю матчей игрока с пагинацией"
+      - Player profiles
+      summary: Get paginated player round history
       operationId: getMatches
       parameters:
       - name: userId
@@ -140,29 +174,93 @@ paths:
           format: int32
           default: 20
       responses:
-        "404":
-          description: "Профиль игрока или вид спорта не найдены"
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/CursorPageDtoPlayerGameHistoryDto"
         "200":
-          description: "История матчей успешно получена"
+          description: Match history retrieved successfully
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/CursorPageDtoPlayerGameHistoryDto"
+                $ref: "#/components/schemas/CursorPageDtoPlayerRoundHistoryDto"
         "400":
-          description: "Некорректный курсор или лимит"
+          description: Invalid cursor or limit
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/CursorPageDtoPlayerGameHistoryDto"
+                $ref: "#/components/schemas/CursorPageDtoPlayerRoundHistoryDto"
+        "404":
+          description: Player profile not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/CursorPageDtoPlayerRoundHistoryDto"
+  /players/{userId}/last-game:
+    get:
+      tags:
+      - Player profiles
+      summary: Get the most recently recorded round played by the user
+      operationId: getLastGame
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: Last round retrieved successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/LastGameDto"
+        "204":
+          description: Player has no recorded rounds
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/LastGameDto"
+        "404":
+          description: Player profile not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/LastGameDto"
+  /players/{userId}/best-sport:
+    get:
+      tags:
+      - Player profiles
+      summary: Get the player's highest-scoring sport
+      operationId: getBestSport
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: Best sport retrieved successfully
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BestSportDto"
+        "204":
+          description: Player has no sport statistics
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BestSportDto"
+        "404":
+          description: Player profile not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BestSportDto"
   /leaderboards/{sportId}:
     get:
       tags:
-      - "Таблицы лидеров"
-      summary: "Получить таблицу лидеров по виду спорта"
+      - Leaderboards
+      summary: Get sport leaderboard
       operationId: getLeaderboard
       parameters:
       - name: sportId
@@ -185,257 +283,311 @@ paths:
           default: 20
       responses:
         "200":
-          description: "Таблица лидеров успешно получена"
+          description: Leaderboard retrieved successfully
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/CursorPageDtoLeaderboardEntryDto"
         "400":
-          description: "Некорректный курсор или лимит"
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/CursorPageDtoLeaderboardEntryDto"
-        "404":
-          description: "Вид спорта не найден"
+          description: "Invalid sport ID, cursor or limit"
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/CursorPageDtoLeaderboardEntryDto"
 components:
   schemas:
-    GameResultDetailsDto:
+    PlayerResultDto:
       type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        outcome:
+          type: string
+          enum:
+          - WIN
+          - LOSS
+          - DRAW
+        ratingChange:
+          type: integer
+          format: int32
+    RoundResultDetailsDto:
+      type: object
+      description: Result of one round in an activity request
       properties:
         id:
           type: string
-          description: "Уникальный ID результата игры"
           format: uuid
-          example: 123e4567-e89b-12d3-a456-426614174000
         activityRequestId:
           type: string
-          description: "ID соответствующей заявки на игру"
           format: uuid
-          example: 123e4567-e89b-12d3-a456-426614174000
+        roundNumber:
+          type: integer
+          format: int32
         sportId:
           type: integer
-          description: "ID вида спорта"
           format: int64
-          example: 1
         status:
           type: string
-          description: "Текущий статус результата игры"
           enum:
           - PENDING
           - CONFIRMED
           - DISPUTED
         createdAt:
           type: string
-          description: "Время обработки результата"
           format: date-time
-          example: 2026-09-04T18:00:00Z
         players:
           type: array
-          description: "Результаты отдельных игроков"
           items:
             $ref: "#/components/schemas/PlayerResultDto"
-      description: "Подробные сведения о результате игры"
-    PlayerResultDto:
-      type: object
-      properties:
-        userId:
-          type: string
-          description: "ID пользователя"
-          format: uuid
-          example: 123e4567-e89b-12d3-a456-426614174000
-        outcome:
-          type: string
-          description: "Исход матча для этого игрока"
-          enum:
-          - WIN
-          - LOSS
-          - DRAW
-        ratingChange:
-          type: integer
-          description: "Изменение рейтинга после этого матча"
-          format: int32
-      description: "Результат отдельного игрока в игре"
     RankTierDto:
       type: object
+      description: Configured score threshold for a rank tier
       properties:
         name:
           type: string
-          description: "Название ранга"
+          description: Rank name
           example: GOLD
         tier:
           type: integer
-          description: "Номер ступени от 1 до 3"
           format: int32
+          description: Tier number from 1 to 3
           example: 1
         scoreMin:
           type: integer
-          description: "Минимальное число очков этого ранга"
           format: int32
+          description: Minimum score included in this rank
           example: 1200
         scoreMax:
           type: integer
-          description: "Максимальное число очков этого ранга"
           format: int32
+          description: Maximum score included in this rank
           example: 1399
-      description: "Настроенный порог очков ступени ранга"
     PlayerSummaryDto:
       type: object
+      description: Aggregated player statistics
       properties:
         userId:
           type: string
-          description: "ID пользователя"
           format: uuid
+          description: User ID
           example: 123e4567-e89b-12d3-a456-426614174000
         summary:
           $ref: "#/components/schemas/Summary"
-      description: "Сводная статистика игрока"
+          description: Aggregated statistics across all sports
     Summary:
       type: object
       properties:
         sportsPlayed:
           type: integer
-          description: "Число видов спорта, в которые играл пользователь"
           format: int64
+          description: Number of sports played
           example: 2
-        gamesPlayed:
+        roundsPlayed:
           type: integer
-          description: "Общее число игр"
           format: int32
+          description: Total number of rounds
           example: 12
         wins:
           type: integer
-          description: "Всего побед"
           format: int32
+          description: Total wins
           example: 7
         losses:
           type: integer
-          description: "Всего поражений"
           format: int32
+          description: Total losses
           example: 4
         draws:
           type: integer
-          description: "Всего ничьих"
           format: int32
+          description: Total draws
           example: 1
-      description: "Сводная статистика по всем видам спорта"
     PlayerSportDetailsDto:
       type: object
+      description: Player statistics for one sport
       properties:
         userId:
           type: string
-          description: "ID пользователя"
           format: uuid
+          description: User ID
         sportId:
           type: integer
-          description: "ID вида спорта"
           format: int64
+          description: Sport ID
           example: 1
-        sportName:
-          type: string
-          description: "Название вида спорта"
-          example: Football
-        gamesPlayed:
+        roundsPlayed:
           type: integer
-          description: "Число игр по этому виду спорта"
           format: int32
+          description: Rounds played in this sport
           example: 8
         wins:
           type: integer
-          description: "Победы по этому виду спорта"
           format: int32
+          description: Wins in this sport
           example: 5
         losses:
           type: integer
-          description: "Поражения по этому виду спорта"
           format: int32
+          description: Losses in this sport
           example: 2
         draws:
           type: integer
-          description: "Ничьи по этому виду спорта"
           format: int32
+          description: Draws in this sport
           example: 1
         score:
           type: integer
-          description: "Текущее число очков"
           format: int32
+          description: Current score
           example: 1200
         leaderboardPlace:
           type: integer
-          description: "Текущее место в таблице лидеров"
           format: int64
+          description: Current leaderboard place
           example: 7
         rank:
           $ref: "#/components/schemas/RankDto"
-      description: "Статистика игрока по одному виду спорта"
+          description: Rank calculated from score
     RankDto:
       type: object
+      description: Player rank calculated from score
       properties:
         name:
           type: string
-          description: "Название ранга"
+          description: Rank name
           example: GOLD
         tier:
           type: integer
-          description: "Ступень ранга"
           format: int32
+          description: Rank tier
           example: 1
         scoreMin:
           type: integer
-          description: "Минимальное число очков"
           format: int32
+          description: Minimum score
           example: 1200
         scoreMax:
           type: integer
-          description: "Максимальное число очков"
           format: int32
+          description: Maximum score
           example: 1399
-      description: "Ранг игрока, рассчитанный по очкам"
-    CursorPageDtoPlayerGameHistoryDto:
+    OtherSportDto:
+      type: object
+      description: Statistics for a sport other than the player's highest-scoring
+        sport
+      properties:
+        sportId:
+          type: integer
+          format: int64
+        score:
+          type: integer
+          format: int32
+        nextRankScore:
+          type: integer
+          format: int32
+          description: Score required for the next rank; null at the highest rank
+        rank:
+          $ref: "#/components/schemas/RankDto"
+    CursorPageDtoPlayerRoundHistoryDto:
       type: object
       properties:
         items:
           type: array
           items:
-            $ref: "#/components/schemas/PlayerGameHistoryDto"
+            $ref: "#/components/schemas/PlayerRoundHistoryDto"
         nextCursor:
           type: string
         hasNext:
           type: boolean
-    PlayerGameHistoryDto:
+    PlayerRoundHistoryDto:
       type: object
+      description: One round in a player's history
       properties:
-        gameResultId:
+        roundResultId:
           type: string
-          description: "ID результата игры"
           format: uuid
-          example: 123e4567-e89b-12d3-a456-426614174000
+        activityRequestId:
+          type: string
+          format: uuid
+        roundNumber:
+          type: integer
+          format: int32
         sportId:
           type: integer
-          description: "ID вида спорта"
           format: int64
-          example: 1
         outcome:
           type: string
-          description: "Исход для этого игрока"
           enum:
           - WIN
           - LOSS
           - DRAW
         ratingChange:
           type: integer
-          description: "Изменение рейтинга после этого матча"
           format: int32
         createdAt:
           type: string
-          description: "Время обработки результата"
           format: date-time
-          example: 2026-09-04T18:00:00Z
-      description: "Одна запись истории матчей игрока"
+    LastGameDto:
+      type: object
+      description: The most recently recorded round played by a user
+      properties:
+        roundResultId:
+          type: string
+          format: uuid
+        activityRequestId:
+          type: string
+          format: uuid
+        roundNumber:
+          type: integer
+          format: int32
+        sportId:
+          type: integer
+          format: int64
+        outcome:
+          type: string
+          enum:
+          - WIN
+          - LOSS
+          - DRAW
+        createdAt:
+          type: string
+          format: date-time
+          description: "Time the result was recorded, not the date the game was played"
+        playerIds:
+          type: array
+          description: "User IDs of all participants in this round, including the\
+            \ requested player"
+          items:
+            type: string
+            format: uuid
+    BestSportDto:
+      type: object
+      description: Player's highest-scoring sport
+      properties:
+        sportId:
+          type: integer
+          format: int64
+        score:
+          type: integer
+          format: int32
+        nextRankScore:
+          type: integer
+          format: int32
+          description: Score required for the next rank; null at the highest rank
+        leaderboardPlace:
+          type: integer
+          format: int64
+          description: Place among players of this sport; equal scores share a place
+        wins:
+          type: integer
+          format: int32
+        winRatePercent:
+          type: number
+          format: double
+          description: "Wins divided by all rounds in this sport, as a percentage"
+        rank:
+          $ref: "#/components/schemas/RankDto"
     CursorPageDtoLeaderboardEntryDto:
       type: object
       properties:

@@ -181,7 +181,7 @@ func TestCoreHTTPResponsePassthrough(t *testing.T) {
 		body   string
 	}{
 		{"created", http.MethodPost, "/api/v1/requests?z=1&z=2&raw=%2F", 201, `{"id":"new"}`},
-		{"round list", http.MethodGet, "/api/v1/requests/123/rounds", 202, "accepted"},
+		{"user request list", http.MethodGet, "/api/v1/requests/users/123?statuses=COMPLETED&page=0", 202, "accepted"},
 		{"unexpected success and binary body", http.MethodPut, "/api/v1/requests/%31", 207, "\x00\xff\r\nopaque"},
 		{"empty success", http.MethodPost, "/api/v1/requests/123/cancel", 204, ""},
 		{"redirect", http.MethodGet, "/api/v1/sports", 302, "redirect from Core"},

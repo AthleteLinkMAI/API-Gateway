@@ -1,35 +1,14 @@
 openapi: 3.1.0
 info:
-  title: "AtheleteLink — сервис аутентификации"
-  description: "Аутентификация, верификация, управление сессиями и пользователями"
+  title: AtheleteLink Auth Service
+  description: "Authentication, verification, session and user management"
   license:
     name: MIT License
-  version: 0.0.1
+  version: 1.0.0
 servers:
-- url: http://localhost:8080
-  description: "Сгенерированный URL сервера"
+- url: http://localhost:8081/api/v1
+  description: Generated server url
 paths:
-  /user/me/{userId}:
-    get:
-      tags:
-      - user-controller
-      operationId: me
-      summary: "Получить сведения о пользователе"
-      description: "Дополнение из UserController.me(UUID), проверенное по исходникам. Текущий UserControllerDto пуст, а UserMapper не копирует поля DTO сервиса. Для полей ответа нужны реализация в Auth и обновление снимка; поведение работающего сервиса не проверено."
-      parameters:
-      - name: userId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "200":
-          description: "Сведения о пользователе, возвращаемые Auth; текущий DTO контроллера пуст."
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/UserControllerDto"
   /user/update-user/{userId}:
     put:
       tags:
@@ -50,7 +29,7 @@ paths:
         required: true
       responses:
         "200":
-          description: "Успешно"
+          description: OK
   /user/change-password/{userId}:
     put:
       tags:
@@ -71,7 +50,7 @@ paths:
         required: true
       responses:
         "200":
-          description: "Успешно"
+          description: OK
   /user/change-email/{userId}:
     put:
       tags:
@@ -93,7 +72,7 @@ paths:
         required: true
       responses:
         "200":
-          description: "Успешно"
+          description: OK
   /verification/verify-password-reset:
     post:
       tags:
@@ -107,7 +86,7 @@ paths:
         required: true
       responses:
         "200":
-          description: "Успешно"
+          description: OK
   /verification/verify-email/{userId}:
     post:
       tags:
@@ -128,7 +107,7 @@ paths:
         required: true
       responses:
         "200":
-          description: "Успешно"
+          description: OK
           content:
             '*/*':
               schema:
@@ -147,7 +126,7 @@ paths:
         required: true
       responses:
         "200":
-          description: "Успешно"
+          description: OK
   /verification/send-email-verification-code/{userId}:
     post:
       tags:
@@ -162,7 +141,7 @@ paths:
           format: uuid
       responses:
         "200":
-          description: "Успешно"
+          description: OK
   /user/register:
     post:
       tags:
@@ -176,21 +155,21 @@ paths:
         required: true
       responses:
         "200":
-          description: "Успешно"
+          description: OK
   /auth/refresh:
     post:
       tags:
       - authentication-controller
       operationId: refresh
       parameters:
-      - name: refreshToken
+      - name: jwtRefreshToken
         in: cookie
         required: true
         schema:
           type: string
       responses:
         "200":
-          description: "Успешно"
+          description: OK
           content:
             '*/*':
               schema:
@@ -208,16 +187,35 @@ paths:
         required: true
       responses:
         "200":
-          description: "Успешно"
+          description: OK
+  /user:
+    get:
+      tags:
+      - user-controller
+      operationId: getUsersByUserIds
+      parameters:
+      - name: userIds
+        in: query
+        required: true
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/LoginResultControllerDto"
-  /session/get-all/{userId}:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserPublicControllerDto"
+  /user/me/{userId}:
     get:
       tags:
-      - session-controller
-      operationId: getSessions
+      - user-controller
+      operationId: me
       parameters:
       - name: userId
         in: path
@@ -227,7 +225,26 @@ paths:
           format: uuid
       responses:
         "200":
-          description: "Успешно"
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/UserControllerDto"
+  /session/get-all/{userId}:
+    get:
+      tags:
+      - session-controller
+      operationId: getAllSessions
+      parameters:
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
           content:
             '*/*':
               schema:
@@ -238,10 +255,10 @@ paths:
     get:
       tags:
       - health-controller
-      operationId: health
+      operationId: getHealth
       responses:
         "200":
-          description: "Успешно"
+          description: OK
   /user/delete/{userId}:
     delete:
       tags:
@@ -256,7 +273,7 @@ paths:
           format: uuid
       responses:
         "200":
-          description: "Успешно"
+          description: OK
   /session/terminate/{userId}:
     delete:
       tags:
@@ -278,7 +295,7 @@ paths:
         required: true
       responses:
         "200":
-          description: "Успешно"
+          description: OK
   /session/terminate-all/{userId}:
     delete:
       tags:
@@ -293,35 +310,44 @@ paths:
           format: uuid
       responses:
         "200":
-          description: "Успешно"
+          description: OK
   /auth/logout:
     delete:
       tags:
       - authentication-controller
       operationId: logout
       parameters:
-      - name: refreshToken
+      - name: jwtRefreshToken
         in: cookie
         required: false
         schema:
           type: string
       responses:
         "200":
-          description: "Успешно"
+          description: OK
 components:
   schemas:
-    UserControllerDto:
-      type: object
-      description: "Сейчас это пустой Java record. Этот снимок, проверенный по исходникам, не гарантирует поля пользователя до завершения DTO и маппера Auth."
     UserUpdateControllerDto:
       type: object
       properties:
-        username:
+        nickname:
           type: string
           maxLength: 30
           minLength: 0
+        name:
+          type: string
+          maxLength: 30
+          minLength: 0
+        surname:
+          type: string
+          maxLength: 30
+          minLength: 0
+        birthdate:
+          type: string
+          format: date
       required:
-      - username
+      - birthdate
+      - nickname
     ChangePasswordRequestControllerDto:
       type: object
       properties:
@@ -352,10 +378,18 @@ components:
     RegisterRequestControllerDto:
       type: object
       properties:
-        username:
+        nickname:
           type: string
           maxLength: 30
           minLength: 3
+        name:
+          type: string
+          maxLength: 30
+          minLength: 0
+        surname:
+          type: string
+          maxLength: 30
+          minLength: 0
         email:
           type: string
           format: email
@@ -364,10 +398,14 @@ components:
           type: string
           maxLength: 2147483647
           minLength: 8
+        birthdate:
+          type: string
+          format: date
       required:
+      - birthdate
       - email
+      - nickname
       - password
-      - username
     CredentialsControllerDto:
       type: object
       properties:
@@ -381,18 +419,46 @@ components:
       required:
       - email
       - password
-    LoginResultControllerDto:
+    UserPublicControllerDto:
       type: object
       properties:
-        success:
-          type: boolean
-        isVerified:
-          type: boolean
-        userId:
+        id:
           type: string
           format: uuid
-        refreshToken:
+        nickname:
           type: string
+        name:
+          type: string
+        surname:
+          type: string
+        age:
+          type: integer
+          format: int32
+        registrationDate:
+          type: string
+          format: date
+    UserControllerDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        nickname:
+          type: string
+        name:
+          type: string
+        surname:
+          type: string
+        email:
+          type: string
+        isVerified:
+          type: boolean
+        age:
+          type: integer
+          format: int32
+        registrationDate:
+          type: string
+          format: date
     SessionControllerDto:
       type: object
       properties:

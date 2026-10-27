@@ -27,7 +27,8 @@ def inline_schema_refs(value, schemas, stack = [])
   case value
   when Hash
     if value.key?("$ref")
-      raise "schema reference has unsupported sibling fields: #{value.keys.inspect}" unless value.keys == ["$ref"]
+      siblings = value.keys - ["$ref"]
+      raise "schema reference has unsupported sibling fields: #{siblings.inspect}" unless (siblings - ["description"]).empty?
 
       reference = value.fetch("$ref")
       prefix = "#/components/schemas/"
@@ -37,7 +38,11 @@ def inline_schema_refs(value, schemas, stack = [])
       raise "missing schema: #{name}" unless schemas.key?(name)
       raise "cyclic schema reference: #{(stack + [name]).join(' -> ')}" if stack.include?(name)
 
-      return inline_schema_refs(schemas.fetch(name), schemas, stack + [name])
+      resolved = inline_schema_refs(schemas.fetch(name), schemas, stack + [name])
+      return resolved unless value.key?("description")
+
+      raise "described schema reference does not resolve to an object: #{reference}" unless resolved.is_a?(Hash)
+      return resolved.merge("description" => value.fetch("description"))
     end
 
     value.transform_values { |child| inline_schema_refs(child, schemas, stack) }
@@ -79,7 +84,7 @@ html = <<~HTML
   <body>
     <div class="gateway-notice">
       <strong>Черновая документация AthleteLink Gateway</strong>
-      Контракты Core и Auth пока не сверены с работающими сервисами.
+      Контракты Core, Auth и Game пока не сверены с работающими сервисами.
       <span id="gateway-connection">Просмотр доступен без подключения к API. Для Try it out добавьте к адресу страницы параметр ?gateway=https://адрес-gateway.</span>
     </div>
     <div id="swagger-ui"></div>
