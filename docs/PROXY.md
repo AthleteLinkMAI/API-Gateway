@@ -72,8 +72,8 @@
 | Game | GET | `/api/v1/players` | Требуется; userId целевого сервиса — проверенный `sub` |
 | Game | GET | `/api/v1/players/` | Требуется; то же поведение, без перенаправления |
 | Game | GET | `/api/v1/players/{userId}/sports/{sportId}` | Требуется |
-| Game | GET | `/api/v1/players/{userId}/matches` | Требуется |
-| Game | GET | `/api/v1/leaderboards/{sportId}` | Требуется |
+| Game | GET | `/api/v1/players/{userId}/matches/{page}/{cntPerPage}` | Требуется |
+| Game | GET | `/api/v1/leaderboards/{sportId}/{page}/{cntPerPage}` | Требуется |
 
 - Неизвестные пути API возвращают 404; известный путь с другим методом — 405
   с `Allow`, перечисляющим все объявленные для него методы. Неявные операции

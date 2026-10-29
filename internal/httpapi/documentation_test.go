@@ -93,6 +93,8 @@ func TestDocumentationIncludesCurrentServiceOperations(t *testing.T) {
 		"/api/v1/players/{userId}/other-sports",
 		"/api/v1/players/{userId}/last-game",
 		"/api/v1/players/{userId}/best-sport",
+		"/api/v1/players/{userId}/matches/{page}/{cntPerPage}",
+		"/api/v1/leaderboards/{sportId}/{page}/{cntPerPage}",
 	} {
 		if !strings.Contains(contract, "  \""+path+"\":\n") {
 			t.Errorf("embedded contract lacks %s", path)
@@ -100,5 +102,13 @@ func TestDocumentationIncludesCurrentServiceOperations(t *testing.T) {
 	}
 	if strings.Contains(contract, "  \"/api/v1/requests/{requestId}/rounds\":\n") {
 		t.Error("embedded contract still exposes the removed round list route")
+	}
+	for _, path := range []string{
+		"/api/v1/players/{userId}/matches",
+		"/api/v1/leaderboards/{sportId}",
+	} {
+		if strings.Contains(contract, "  \""+path+"\":\n") {
+			t.Errorf("embedded contract still exposes %s", path)
+		}
 	}
 }

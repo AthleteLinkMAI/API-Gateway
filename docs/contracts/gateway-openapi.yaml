@@ -2905,11 +2905,11 @@ paths:
                 format: uuid
       security:
       - BearerAuth: []
-  "/api/v1/players/{userId}/matches":
+  "/api/v1/players/{userId}/matches/{page}/{cntPerPage}":
     get:
       tags:
       - Player profiles
-      summary: Get paginated player round history
+      summary: Get player round history by page number
       operationId: getMatches
       parameters:
       - name: userId
@@ -2924,25 +2924,27 @@ paths:
         schema:
           type: integer
           format: int64
-      - name: cursor
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: limit
-        in: query
-        required: false
+      - name: page
+        in: path
+        required: true
         schema:
           type: integer
           format: int32
-          default: 20
+      - name: cntPerPage
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
       responses:
         '200':
           description: Match history retrieved successfully
           content:
             "*/*":
               schema:
-                "$ref": "#/components/schemas/Game_CursorPageDtoPlayerRoundHistoryDto"
+                type: array
+                items:
+                  "$ref": "#/components/schemas/Game_PlayerRoundHistoryDto"
           headers:
             X-Request-Id:
               description: UUID, сгенерированный Gateway для этого запроса.
@@ -2950,11 +2952,13 @@ paths:
                 type: string
                 format: uuid
         '400':
-          description: Invalid cursor or limit
+          description: Invalid sport ID, page or count per page
           content:
             "*/*":
               schema:
-                "$ref": "#/components/schemas/Game_CursorPageDtoPlayerRoundHistoryDto"
+                type: array
+                items:
+                  "$ref": "#/components/schemas/Game_PlayerRoundHistoryDto"
           headers:
             X-Request-Id:
               description: UUID, сгенерированный Gateway для этого запроса.
@@ -2966,7 +2970,9 @@ paths:
           content:
             "*/*":
               schema:
-                "$ref": "#/components/schemas/Game_CursorPageDtoPlayerRoundHistoryDto"
+                type: array
+                items:
+                  "$ref": "#/components/schemas/Game_PlayerRoundHistoryDto"
           headers:
             X-Request-Id:
               description: UUID, сгенерированный Gateway для этого запроса.
@@ -3181,7 +3187,7 @@ paths:
                 format: uuid
       security:
       - BearerAuth: []
-  "/api/v1/leaderboards/{sportId}":
+  "/api/v1/leaderboards/{sportId}/{page}/{cntPerPage}":
     get:
       tags:
       - Leaderboards
@@ -3194,25 +3200,27 @@ paths:
         schema:
           type: integer
           format: int64
-      - name: cursor
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: limit
-        in: query
-        required: false
+      - name: page
+        in: path
+        required: true
         schema:
           type: integer
           format: int32
-          default: 20
+      - name: cntPerPage
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
       responses:
         '200':
           description: Leaderboard retrieved successfully
           content:
             "*/*":
               schema:
-                "$ref": "#/components/schemas/Game_CursorPageDtoLeaderboardEntryDto"
+                type: array
+                items:
+                  "$ref": "#/components/schemas/Game_LeaderboardEntryDto"
           headers:
             X-Request-Id:
               description: UUID, сгенерированный Gateway для этого запроса.
@@ -3220,11 +3228,13 @@ paths:
                 type: string
                 format: uuid
         '400':
-          description: Invalid sport ID, cursor or limit
+          description: Invalid sport ID, page or count per page
           content:
             "*/*":
               schema:
-                "$ref": "#/components/schemas/Game_CursorPageDtoLeaderboardEntryDto"
+                type: array
+                items:
+                  "$ref": "#/components/schemas/Game_LeaderboardEntryDto"
           headers:
             X-Request-Id:
               description: UUID, сгенерированный Gateway для этого запроса.
@@ -4278,17 +4288,6 @@ components:
           description: Score required for the next rank; null at the highest rank
         rank:
           "$ref": "#/components/schemas/Game_RankDto"
-    Game_CursorPageDtoPlayerRoundHistoryDto:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            "$ref": "#/components/schemas/Game_PlayerRoundHistoryDto"
-        nextCursor:
-          type: string
-        hasNext:
-          type: boolean
     Game_PlayerRoundHistoryDto:
       type: object
       description: One round in a player's history
@@ -4377,17 +4376,6 @@ components:
           description: Wins divided by all rounds in this sport, as a percentage
         rank:
           "$ref": "#/components/schemas/Game_RankDto"
-    Game_CursorPageDtoLeaderboardEntryDto:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            "$ref": "#/components/schemas/Game_LeaderboardEntryDto"
-        nextCursor:
-          type: string
-        hasNext:
-          type: boolean
     Game_LeaderboardEntryDto:
       type: object
       properties:
@@ -4410,4 +4398,15 @@ components:
           type: integer
           format: int32
         rank:
-          "$ref": "#/components/schemas/Game_RankDto"
+          "$ref": "#/components/schemas/Game_Rank"
+    Game_Rank:
+      type: object
+      properties:
+        name:
+          type: string
+        scoreMin:
+          type: integer
+          format: int32
+        scoreMax:
+          type: integer
+          format: int32

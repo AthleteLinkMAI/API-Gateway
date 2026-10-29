@@ -142,11 +142,11 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/OtherSportDto"
-  /players/{userId}/matches:
+  /players/{userId}/matches/{page}/{cntPerPage}:
     get:
       tags:
       - Player profiles
-      summary: Get paginated player round history
+      summary: Get player round history by page number
       operationId: getMatches
       parameters:
       - name: userId
@@ -161,37 +161,43 @@ paths:
         schema:
           type: integer
           format: int64
-      - name: cursor
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: limit
-        in: query
-        required: false
+      - name: page
+        in: path
+        required: true
         schema:
           type: integer
           format: int32
-          default: 20
+      - name: cntPerPage
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
       responses:
         "200":
           description: Match history retrieved successfully
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/CursorPageDtoPlayerRoundHistoryDto"
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlayerRoundHistoryDto"
         "400":
-          description: Invalid cursor or limit
+          description: "Invalid sport ID, page or count per page"
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/CursorPageDtoPlayerRoundHistoryDto"
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlayerRoundHistoryDto"
         "404":
           description: Player profile not found
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/CursorPageDtoPlayerRoundHistoryDto"
+                type: array
+                items:
+                  $ref: "#/components/schemas/PlayerRoundHistoryDto"
   /players/{userId}/last-game:
     get:
       tags:
@@ -256,7 +262,7 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/BestSportDto"
-  /leaderboards/{sportId}:
+  /leaderboards/{sportId}/{page}/{cntPerPage}:
     get:
       tags:
       - Leaderboards
@@ -269,31 +275,35 @@ paths:
         schema:
           type: integer
           format: int64
-      - name: cursor
-        in: query
-        required: false
-        schema:
-          type: string
-      - name: limit
-        in: query
-        required: false
+      - name: page
+        in: path
+        required: true
         schema:
           type: integer
           format: int32
-          default: 20
+      - name: cntPerPage
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: int32
       responses:
         "200":
           description: Leaderboard retrieved successfully
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/CursorPageDtoLeaderboardEntryDto"
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntryDto"
         "400":
-          description: "Invalid sport ID, cursor or limit"
+          description: "Invalid sport ID, page or count per page"
           content:
             '*/*':
               schema:
-                $ref: "#/components/schemas/CursorPageDtoLeaderboardEntryDto"
+                type: array
+                items:
+                  $ref: "#/components/schemas/LeaderboardEntryDto"
 components:
   schemas:
     PlayerResultDto:
@@ -489,17 +499,6 @@ components:
           description: Score required for the next rank; null at the highest rank
         rank:
           $ref: "#/components/schemas/RankDto"
-    CursorPageDtoPlayerRoundHistoryDto:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/PlayerRoundHistoryDto"
-        nextCursor:
-          type: string
-        hasNext:
-          type: boolean
     PlayerRoundHistoryDto:
       type: object
       description: One round in a player's history
@@ -588,17 +587,6 @@ components:
           description: "Wins divided by all rounds in this sport, as a percentage"
         rank:
           $ref: "#/components/schemas/RankDto"
-    CursorPageDtoLeaderboardEntryDto:
-      type: object
-      properties:
-        items:
-          type: array
-          items:
-            $ref: "#/components/schemas/LeaderboardEntryDto"
-        nextCursor:
-          type: string
-        hasNext:
-          type: boolean
     LeaderboardEntryDto:
       type: object
       properties:
@@ -621,4 +609,15 @@ components:
           type: integer
           format: int32
         rank:
-          $ref: "#/components/schemas/RankDto"
+          $ref: "#/components/schemas/Rank"
+    Rank:
+      type: object
+      properties:
+        name:
+          type: string
+        scoreMin:
+          type: integer
+          format: int32
+        scoreMax:
+          type: integer
+          format: int32
