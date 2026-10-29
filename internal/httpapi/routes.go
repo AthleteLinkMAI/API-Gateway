@@ -79,8 +79,8 @@ var apiRoutes = [...]routeSpec{
 	{http.MethodGet, "/api/v1/players", gameUpstream, authenticatedAccess},
 	{http.MethodGet, "/api/v1/players/", gameUpstream, authenticatedAccess},
 	{http.MethodGet, "/api/v1/players/{userId}/sports/{sportId}", gameUpstream, authenticatedAccess},
-	{http.MethodGet, "/api/v1/players/{userId}/matches", gameUpstream, authenticatedAccess},
-	{http.MethodGet, "/api/v1/leaderboards/{sportId}", gameUpstream, authenticatedAccess},
+	{http.MethodGet, "/api/v1/players/{userId}/matches/{page}/{cntPerPage}", gameUpstream, authenticatedAccess},
+	{http.MethodGet, "/api/v1/leaderboards/{sportId}/{page}/{cntPerPage}", gameUpstream, authenticatedAccess},
 }
 
 func findAPIRoute(method, escapedPath string) (routeMatch, bool) {

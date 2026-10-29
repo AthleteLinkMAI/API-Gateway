@@ -68,8 +68,8 @@ func TestAllServiceOperationRoutes(t *testing.T) {
 		{http.MethodGet, "/api/v1/players", "game"},
 		{http.MethodGet, "/api/v1/players/", "game"},
 		{http.MethodGet, "/api/v1/players/" + userID + "/sports/7", "game"},
-		{http.MethodGet, "/api/v1/players/" + userID + "/matches", "game"},
-		{http.MethodGet, "/api/v1/leaderboards/7", "game"},
+		{http.MethodGet, "/api/v1/players/" + userID + "/matches/0/20", "game"},
+		{http.MethodGet, "/api/v1/leaderboards/7/0/20", "game"},
 	}
 	if len(tests) != 43 {
 		t.Fatalf("operation cases = %d, want 43", len(tests))
@@ -88,10 +88,10 @@ func TestAllServiceOperationRoutes(t *testing.T) {
 				})
 			}
 			handler := newOperationRoutingHandler(makeHandler("auth"), makeHandler("game"), makeHandler("core"))
-			uri := tc.path + "?cursor=abc%2Fdef"
+			uri := tc.path + "?marker=abc%2Fdef"
 			wantURI := uri
 			if tc.upstream == "auth" && (tc.method == http.MethodPut || tc.path == "/api/v1/user/me" || tc.path == "/api/v1/user/delete" || tc.path == "/api/v1/verification/verify-email" || tc.path == "/api/v1/verification/send-email-verification-code") {
-				wantURI = tc.path + "/" + userID + "?cursor=abc%2Fdef"
+				wantURI = tc.path + "/" + userID + "?marker=abc%2Fdef"
 			}
 			request := httptest.NewRequestWithContext(t.Context(), tc.method, uri, nil)
 			request.Header.Set("Authorization", "Bearer test-token")
@@ -145,6 +145,8 @@ func TestServiceRouteBoundaries(t *testing.T) {
 		"/api/v1/players-extra/123",
 		"/api/v1/players/123/",
 		"/api/v1/players//matches",
+		"/api/v1/players/123/matches",
+		"/api/v1/leaderboards/7",
 	} {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()
@@ -176,6 +178,10 @@ func TestServicePreflightChecksDeclaredMethod(t *testing.T) {
 		{"/api/v1/players/123/other-sports", http.MethodGet, http.StatusNoContent, ""},
 		{"/api/v1/players/123/last-game", http.MethodGet, http.StatusNoContent, ""},
 		{"/api/v1/players/123/best-sport", http.MethodGet, http.StatusNoContent, ""},
+		{"/api/v1/players/123/matches/0/20", http.MethodGet, http.StatusNoContent, ""},
+		{"/api/v1/leaderboards/7/0/20", http.MethodGet, http.StatusNoContent, ""},
+		{"/api/v1/players/123/matches", http.MethodGet, http.StatusNotFound, ""},
+		{"/api/v1/leaderboards/7", http.MethodGet, http.StatusNotFound, ""},
 		{"/api/v1/players", http.MethodGet, http.StatusNoContent, ""},
 		{"/api/v1/players/", http.MethodGet, http.StatusNoContent, ""},
 		{"/api/v1/user/me", http.MethodGet, http.StatusNoContent, ""},

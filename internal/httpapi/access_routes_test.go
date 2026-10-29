@@ -118,8 +118,8 @@ func TestProtectedServiceOperationsRequireBearer(t *testing.T) {
 		{http.MethodGet, "/api/v1/players"},
 		{http.MethodGet, "/api/v1/players/"},
 		{http.MethodGet, "/api/v1/players/" + otherUser + "/sports/7"},
-		{http.MethodGet, "/api/v1/players/" + otherUser + "/matches"},
-		{http.MethodGet, "/api/v1/leaderboards/7"},
+		{http.MethodGet, "/api/v1/players/" + otherUser + "/matches/0/20"},
+		{http.MethodGet, "/api/v1/leaderboards/7/0/20"},
 		{http.MethodGet, "/api/v1/requests/users/" + otherUser},
 	} {
 		t.Run(tc.method+" "+tc.path, func(t *testing.T) {
