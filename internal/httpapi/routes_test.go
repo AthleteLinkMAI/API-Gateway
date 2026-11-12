@@ -15,64 +15,89 @@ import (
 type routeVerifier struct{}
 
 func (routeVerifier) VerifyAccessToken(context.Context, string) (requestcontext.Identity, error) {
-	return requestcontext.Identity{UserID: "123e4567-e89b-42d3-a456-426614174001"}, nil
+	return requestcontext.Identity{UserID: "123e4567-e89b-42d3-a456-426614174001", Role: "USER"}, nil
 }
 
 func TestAllServiceOperationRoutes(t *testing.T) {
 	t.Parallel()
 
-	const userID = "123e4567-e89b-42d3-a456-426614174001"
 	tests := []struct {
 		method   string
 		path     string
 		upstream string
 	}{
-		{http.MethodGet, "/api/v1/requests/users/" + userID, "core"},
-		{http.MethodGet, "/api/v1/requests/123", "core"},
-		{http.MethodPut, "/api/v1/requests/123", "core"},
-		{http.MethodGet, "/api/v1/requests", "core"},
-		{http.MethodPost, "/api/v1/requests", "core"},
-		{http.MethodPost, "/api/v1/requests/123/rounds/1/result", "core"},
-		{http.MethodPost, "/api/v1/requests/123/complete", "core"},
-		{http.MethodPost, "/api/v1/requests/123/start", "core"},
-		{http.MethodPost, "/api/v1/requests/123/registration/open", "core"},
-		{http.MethodPost, "/api/v1/requests/123/registration/close", "core"},
-		{http.MethodPost, "/api/v1/requests/123/leave", "core"},
-		{http.MethodPost, "/api/v1/requests/123/kick/456", "core"},
-		{http.MethodPost, "/api/v1/requests/123/join", "core"},
-		{http.MethodPost, "/api/v1/requests/123/cancel", "core"},
-		{http.MethodGet, "/api/v1/sports", "core"},
-		{http.MethodPut, "/api/v1/user/update-user", "auth"},
-		{http.MethodPut, "/api/v1/user/change-password", "auth"},
-		{http.MethodPut, "/api/v1/user/change-email", "auth"},
-		{http.MethodPost, "/api/v1/verification/verify-password-reset", "auth"},
-		{http.MethodPost, "/api/v1/verification/verify-email", "auth"},
+		{http.MethodPut, "/api/v1/user/role", "auth"},
+		{http.MethodPut, "/api/v1/user/password", "auth"},
+		{http.MethodPut, "/api/v1/user/email", "auth"},
 		{http.MethodPost, "/api/v1/verification/send-password-reset-code", "auth"},
 		{http.MethodPost, "/api/v1/verification/send-email-verification-code", "auth"},
-		{http.MethodPost, "/api/v1/user/register", "auth"},
-		{http.MethodGet, "/api/v1/user", "auth"},
-		{http.MethodGet, "/api/v1/user/me", "auth"},
+		{http.MethodPost, "/api/v1/verification/password-reset", "auth"},
+		{http.MethodPost, "/api/v1/verification/email", "auth"},
+		{http.MethodPost, "/api/v1/user", "auth"},
+		{http.MethodDelete, "/api/v1/user", "auth"},
+		{http.MethodPost, "/api/v1/ban", "auth"},
+		{http.MethodDelete, "/api/v1/ban", "auth"},
 		{http.MethodPost, "/api/v1/auth/refresh", "auth"},
 		{http.MethodPost, "/api/v1/auth/login", "auth"},
-		{http.MethodGet, "/api/v1/session/get-all/" + userID, "auth"},
-		{http.MethodDelete, "/api/v1/user/delete", "auth"},
-		{http.MethodDelete, "/api/v1/session/terminate/" + userID, "auth"},
-		{http.MethodDelete, "/api/v1/session/terminate-all/" + userID, "auth"},
+		{http.MethodGet, "/api/v1/session", "auth"},
+		{http.MethodDelete, "/api/v1/session", "auth"},
+		{http.MethodGet, "/api/v1/ban/123e4567-e89b-42d3-a456-426614174001", "auth"},
+		{http.MethodDelete, "/api/v1/session/all", "auth"},
 		{http.MethodDelete, "/api/v1/auth/logout", "auth"},
-		{http.MethodGet, "/api/v1/results/by-request/" + userID, "game"},
+		{http.MethodGet, "/api/v1/user", "profile"},
+		{http.MethodPut, "/api/v1/user", "profile"},
+		{http.MethodPost, "/api/v1/friend/request", "profile"},
+		{http.MethodDelete, "/api/v1/friend/request", "profile"},
+		{http.MethodPost, "/api/v1/friend/request/decline", "profile"},
+		{http.MethodPost, "/api/v1/friend/request/accept", "profile"},
+		{http.MethodGet, "/api/v1/user/me", "profile"},
+		{http.MethodGet, "/api/v1/friend/123e4567-e89b-42d3-a456-426614174001", "profile"},
+		{http.MethodGet, "/api/v1/friend/request/outgoing/123e4567-e89b-42d3-a456-426614174001", "profile"},
+		{http.MethodGet, "/api/v1/friend/request/incoming/123e4567-e89b-42d3-a456-426614174001", "profile"},
+		{http.MethodDelete, "/api/v1/friend", "profile"},
+		{http.MethodGet, "/api/v1/requests/123e4567-e89b-42d3-a456-426614174001", "core"},
+		{http.MethodPut, "/api/v1/requests/123e4567-e89b-42d3-a456-426614174001", "core"},
+		{http.MethodGet, "/api/v1/requests", "core"},
+		{http.MethodPost, "/api/v1/requests", "core"},
+		{http.MethodPost, "/api/v1/requests/123e4567-e89b-42d3-a456-426614174001/join-requests/123e4567-e89b-42d3-a456-426614174001/decision", "core"},
+		{http.MethodPost, "/api/v1/requests/123e4567-e89b-42d3-a456-426614174001/start", "core"},
+		{http.MethodPost, "/api/v1/requests/123e4567-e89b-42d3-a456-426614174001/registration/open", "core"},
+		{http.MethodPost, "/api/v1/requests/123e4567-e89b-42d3-a456-426614174001/registration/close", "core"},
+		{http.MethodPost, "/api/v1/requests/123e4567-e89b-42d3-a456-426614174001/leave", "core"},
+		{http.MethodPost, "/api/v1/requests/123e4567-e89b-42d3-a456-426614174001/kick/123e4567-e89b-42d3-a456-426614174001", "core"},
+		{http.MethodPost, "/api/v1/requests/123e4567-e89b-42d3-a456-426614174001/join", "core"},
+		{http.MethodPost, "/api/v1/requests/123e4567-e89b-42d3-a456-426614174001/cancel", "core"},
+		{http.MethodGet, "/api/v1/sports", "core"},
+		{http.MethodGet, "/api/v1/requests/123e4567-e89b-42d3-a456-426614174001/join-requests", "core"},
+		{http.MethodGet, "/api/v1/requests/users/123e4567-e89b-42d3-a456-426614174001", "core"},
+		{http.MethodPost, "/api/v1/voting", "game"},
+		{http.MethodPost, "/api/v1/results", "game"},
+		{http.MethodGet, "/api/v1/voting/123e4567-e89b-42d3-a456-426614174001", "game"},
+		{http.MethodGet, "/api/v1/results/by-request/123e4567-e89b-42d3-a456-426614174001", "game"},
 		{http.MethodGet, "/api/v1/rank-tiers", "game"},
-		{http.MethodGet, "/api/v1/players/" + userID, "game"},
-		{http.MethodGet, "/api/v1/players/" + userID + "/other-sports", "game"},
-		{http.MethodGet, "/api/v1/players/" + userID + "/last-game", "game"},
-		{http.MethodGet, "/api/v1/players/" + userID + "/best-sport", "game"},
+		{http.MethodGet, "/api/v1/players/123e4567-e89b-42d3-a456-426614174001", "game"},
+		{http.MethodGet, "/api/v1/players/123e4567-e89b-42d3-a456-426614174001/sports/123e4567-e89b-42d3-a456-426614174001", "game"},
+		{http.MethodGet, "/api/v1/players/123e4567-e89b-42d3-a456-426614174001/other-sports", "game"},
+		{http.MethodGet, "/api/v1/players/123e4567-e89b-42d3-a456-426614174001/matches/123e4567-e89b-42d3-a456-426614174001/123e4567-e89b-42d3-a456-426614174001", "game"},
+		{http.MethodGet, "/api/v1/players/123e4567-e89b-42d3-a456-426614174001/last-game", "game"},
+		{http.MethodGet, "/api/v1/players/123e4567-e89b-42d3-a456-426614174001/best-sport", "game"},
+		{http.MethodGet, "/api/v1/leaderboards/123e4567-e89b-42d3-a456-426614174001/123e4567-e89b-42d3-a456-426614174001/123e4567-e89b-42d3-a456-426614174001", "game"},
+		{http.MethodGet, "/api/v1/report", "chat"},
+		{http.MethodPost, "/api/v1/report", "chat"},
+		{http.MethodPost, "/api/v1/message/private", "chat"},
+		{http.MethodPost, "/api/v1/message/chat", "chat"},
+		{http.MethodPost, "/api/v1/message/activity-request", "chat"},
+		{http.MethodGet, "/api/v1/report/123e4567-e89b-42d3-a456-426614174001", "chat"},
+		{http.MethodGet, "/api/v1/report/all", "chat"},
+		{http.MethodGet, "/api/v1/message/private/123e4567-e89b-42d3-a456-426614174001", "chat"},
+		{http.MethodGet, "/api/v1/message/chat/123e4567-e89b-42d3-a456-426614174001", "chat"},
+		{http.MethodGet, "/api/v1/message/activity-request/123e4567-e89b-42d3-a456-426614174001", "chat"},
+		{http.MethodDelete, "/api/v1/report/123e4567-e89b-42d3-a456-426614174001", "chat"},
 		{http.MethodGet, "/api/v1/players", "game"},
 		{http.MethodGet, "/api/v1/players/", "game"},
-		{http.MethodGet, "/api/v1/players/" + userID + "/sports/7", "game"},
-		{http.MethodGet, "/api/v1/players/" + userID + "/matches/0/20", "game"},
-		{http.MethodGet, "/api/v1/leaderboards/7/0/20", "game"},
 	}
-	if len(tests) != 43 {
-		t.Fatalf("operation cases = %d, want 43", len(tests))
+	if len(tests) != 69 {
+		t.Fatalf("operation cases = %d, want 69", len(tests))
 	}
 
 	for _, tc := range tests {
@@ -87,12 +112,9 @@ func TestAllServiceOperationRoutes(t *testing.T) {
 					w.WriteHeader(http.StatusAccepted)
 				})
 			}
-			handler := newOperationRoutingHandler(makeHandler("auth"), makeHandler("game"), makeHandler("core"))
+			handler := newOperationRoutingHandler(makeHandler("auth"), makeHandler("game"), makeHandler("core"), makeHandler("profile"), makeHandler("chat"))
 			uri := tc.path + "?marker=abc%2Fdef"
 			wantURI := uri
-			if tc.upstream == "auth" && (tc.method == http.MethodPut || tc.path == "/api/v1/user/me" || tc.path == "/api/v1/user/delete" || tc.path == "/api/v1/verification/verify-email" || tc.path == "/api/v1/verification/send-email-verification-code") {
-				wantURI = tc.path + "/" + userID + "?marker=abc%2Fdef"
-			}
 			request := httptest.NewRequestWithContext(t.Context(), tc.method, uri, nil)
 			request.Header.Set("Authorization", "Bearer test-token")
 			recorder := httptest.NewRecorder()
@@ -186,7 +208,7 @@ func TestServicePreflightChecksDeclaredMethod(t *testing.T) {
 		{"/api/v1/players/", http.MethodGet, http.StatusNoContent, ""},
 		{"/api/v1/user/me", http.MethodGet, http.StatusNoContent, ""},
 		{"/api/v1/user", http.MethodGet, http.StatusNoContent, ""},
-		{"/api/v1/user", http.MethodPost, http.StatusMethodNotAllowed, http.MethodGet},
+		{"/api/v1/user", http.MethodPost, http.StatusNoContent, ""},
 		{"/api/v1/user/me/123", http.MethodGet, http.StatusNotFound, ""},
 		{"/api/v1/requests", http.MethodGet, http.StatusNoContent, ""},
 		{"/api/v1/requests", http.MethodPost, http.StatusNoContent, ""},
@@ -219,18 +241,27 @@ func newOperationRoutingHandler(authHandler, gameHandler http.Handler, coreHandl
 	if len(coreHandlers) > 0 {
 		coreHandler = coreHandlers[0]
 	}
+	profileHandler, chatHandler := authHandler, gameHandler
+	if len(coreHandlers) > 1 {
+		profileHandler = coreHandlers[1]
+	}
+	if len(coreHandlers) > 2 {
+		chatHandler = coreHandlers[2]
+	}
 	return httpapi.NewHandler(httpapi.HandlerOptions{
 		Readiness:       &httpapi.Readiness{},
 		CheckDependency: func(context.Context) error { return nil },
 		CoreProxy:       coreHandler,
 		AuthHandler:     authHandler,
 		GameHandler:     gameHandler,
-		CoreTimeout:     time.Second,
-		AuthTimeout:     time.Second,
-		GameTimeout:     time.Second,
-		WriteTimeout:    2 * time.Second,
-		Verifier:        routeVerifier{},
-		NewRequestID:    func() string { return "gateway-request-id" },
-		CORSOrigins:     []string{"https://app.example"},
+		ProfileHandler:  profileHandler, ChatHandler: chatHandler,
+		CoreTimeout:    time.Second,
+		AuthTimeout:    time.Second,
+		GameTimeout:    time.Second,
+		ProfileTimeout: time.Second, ChatTimeout: time.Second,
+		WriteTimeout: 2 * time.Second,
+		Verifier:     routeVerifier{},
+		NewRequestID: func() string { return "gateway-request-id" },
+		CORSOrigins:  []string{"https://app.example"},
 	})
 }

@@ -12,6 +12,7 @@ type DiagnosticFields struct {
 	UserID         string
 	AuthResult     string
 	DenylistResult string
+	BanlistResult  string
 	ErrorKind      string
 	Dependency     string
 	UpstreamCalled bool
@@ -25,7 +26,7 @@ type Diagnostics struct {
 
 func WithDiagnostics(ctx context.Context) (context.Context, *Diagnostics) {
 	d := &Diagnostics{fields: DiagnosticFields{
-		AuthResult: "not_required", DenylistResult: "not_checked",
+		AuthResult: "not_required", DenylistResult: "not_checked", BanlistResult: "not_checked",
 	}}
 	return context.WithValue(ctx, diagnosticsKey{}, d), d
 }

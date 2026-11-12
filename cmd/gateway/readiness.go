@@ -25,6 +25,8 @@ func newReadinessCheck(
 		{"Auth", cfg.AuthHealthURL},
 		{"Core", cfg.CoreHealthURL},
 		{"Game", cfg.GameHealthURL},
+		{"Profile", cfg.ProfileHealthURL},
+		{"Chat", cfg.ChatHealthURL},
 	}
 
 	return func(parent context.Context) error {

@@ -1,17 +1,22 @@
 openapi: 3.1.0
 info:
-  title: OpenAPI definition
-  version: v0
+  title: Request Service API
+  description: "Create and manage activity requests before a match starts. Players\
+    \ apply to join; organizers approve or reject those applications directly in Request\
+    \ Service. After a request starts, Game Service owns rounds and results; this\
+    \ API exposes the mirrored request status."
+  version: v1
 servers:
-- url: http://localhost:8082/api/v1
+- url: http://localhost:8081/api/v1
   description: Generated server url
 tags:
 - name: Activity requests
   description: "Create requests, manage participants and registration, and start matches"
-- name: Round submissions and completion
-  description: Game Service stores and scores round results asynchronously
 - name: Sports
   description: Read the sport catalog and whether each sport accepts new requests
+- name: Join requests
+  description: Organizer review of pending player applications before an activity
+    request starts
 paths:
   /requests/{id}:
     get:
@@ -19,7 +24,9 @@ paths:
       - Activity requests
       summary: Get request details
       description: "Returns the request, current registration state and participant\
-        \ list."
+        \ list. Participants may be PENDING, ACCEPTED or KICKED; only ACCEPTED players\
+        \ count towards currentPlayers. After the start, Game owns results and sends\
+        \ the completion status asynchronously."
       operationId: getRequestDetails
       parameters:
       - name: id
@@ -54,7 +61,7 @@ paths:
       - Activity requests
       summary: Edit activity request
       description: The organizer updates a planned request. The new capacity must
-        fit current participants and stay within the sport's limits.
+        fit accepted and pending players and stay within the sport's limits.
       operationId: updateRequest
       parameters:
       - name: id
@@ -66,8 +73,8 @@ paths:
           format: uuid
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: Caller UUID. Request Service does not currently authenticate
+          this header.
         required: true
         schema:
           type: string
@@ -104,7 +111,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: Request is not planned or capacity is below joined player count
+          description: Request is not planned or capacity is below accepted and pending
+            player count
           content:
             '*/*':
               schema:
@@ -150,12 +158,11 @@ paths:
         example: 5000
       - name: sportId
         in: query
-        description: Filter by sport type (optional)
+        description: Filter by sport name used as its ID (optional)
         required: false
         schema:
-          type: integer
-          format: int64
-        example: 1
+          type: string
+        example: Футбол
       - name: startDate
         in: query
         description: Begin of time window (ISO-8601)
@@ -197,8 +204,8 @@ paths:
       parameters:
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: Caller UUID. Request Service does not currently authenticate
+          this header.
         required: true
         schema:
           type: string
@@ -211,14 +218,11 @@ paths:
         required: true
       responses:
         "201":
-          description: Request created; response contains requestId
+          description: Request created with its organizer accepted
           content:
             '*/*':
               schema:
-                type: object
-                additionalProperties:
-                  type: string
-                  format: uuid
+                $ref: "#/components/schemas/CreateRequestResponseDto"
         "400":
           description: Invalid request data or player limit
           content:
@@ -237,35 +241,37 @@ paths:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
-  /requests/{requestId}/rounds/{roundNumber}/result:
+  /requests/{requestId}/join-requests/{participantId}/decision:
     post:
       tags:
-      - Round submissions and completion
-      summary: Submit one round result
-      description: "Core validates the organizer and players, then queues the result\
-        \ for Game Service. A 202 response does not mean Game Service has recorded\
-        \ or scored it. Repeated submissions are resolved by Game Service using request\
-        \ ID and round number."
-      operationId: recordRoundResult
+      - Join requests
+      summary: Approve or reject a join request
+      description: Only the organizer may decide a pending application while the activity
+        request is PLANNED. Approval changes the player to ACCEPTED immediately and
+        sets joinedAt. Rejection deletes the pending record. A later application by
+        the same user has a different participantId. The decision is committed in
+        Request Service; no Game Service message is used. Closing registration blocks
+        new applications but does not block decisions on existing ones.
+      operationId: decideJoinRequest
       parameters:
       - name: requestId
         in: path
-        description: Request UUID
+        description: Activity request UUID
         required: true
         schema:
           type: string
           format: uuid
-      - name: roundNumber
+      - name: participantId
         in: path
-        description: "Round number, starting at 1"
+        description: ID of the pending participant record returned by the list endpoint
         required: true
         schema:
-          type: integer
-          format: int32
+          type: string
+          format: uuid
       - name: X-User-Id
         in: header
-        description: Caller UUID supplied by the trusted API Gateway; Core does not
-          verify the JWT
+        description: Caller UUID supplied by the API Gateway. Request Service does
+          not authenticate this header itself.
         required: true
         schema:
           type: string
@@ -274,17 +280,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/RecordRoundResultRequestDto"
+              $ref: "#/components/schemas/JoinDecisionRequestDto"
         required: true
       responses:
-        "202":
-          description: Round result queued
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/RoundSubmissionAcceptedDto"
+        "204":
+          description: Decision applied; no response body
         "400":
-          description: Invalid round number or player selection
+          description: Missing or malformed UUID or accepted flag
           content:
             '*/*':
               schema:
@@ -296,63 +298,14 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "404":
-          description: Request not found
+          description: Activity request or specified application not found
           content:
             '*/*':
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: Request is not active
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ApiError"
-  /requests/{requestId}/complete:
-    post:
-      tags:
-      - Round submissions and completion
-      summary: Request asynchronous completion
-      description: "Core moves the request to CONFIRMATION and queues a Game Service\
-        \ check. Poll GET /requests/{requestId} for COMPLETED or ACTIVE with completionErrorMessage.\
-        \ A repeated call while pending does not queue another command."
-      operationId: completeRequest
-      parameters:
-      - name: requestId
-        in: path
-        description: Request UUID
-        required: true
-        schema:
-          type: string
-          format: uuid
-      - name: X-User-Id
-        in: header
-        description: Caller UUID supplied by the trusted API Gateway; Core does not
-          verify the JWT
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "202":
-          description: Completion check queued
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/CompletionAcceptedDto"
-        "403":
-          description: Caller is not the organizer
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ApiError"
-        "404":
-          description: Request not found
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/ApiError"
-        "409":
-          description: Request is not active
+          description: Activity request is no longer planned or the application is
+            no longer pending
           content:
             '*/*':
               schema:
@@ -362,8 +315,11 @@ paths:
       tags:
       - Activity requests
       summary: Start a request
-      description: The organizer starts a planned request after the sport's minimum
-        number of players has joined. Registration closes automatically.
+      description: "The organizer starts a planned request once the sport's minimum\
+        \ number of players has been accepted. Registration closes, pending join attempts\
+        \ are removed, and a snapshot of the accepted roster is queued for Game and\
+        \ Chat. A 204 response means the snapshot is durably queued, not yet processed\
+        \ by either consumer."
       operationId: startRequest
       parameters:
       - name: id
@@ -375,15 +331,15 @@ paths:
           format: uuid
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: Caller UUID. Request Service does not currently authenticate
+          this header.
         required: true
         schema:
           type: string
           format: uuid
       responses:
         "204":
-          description: Request started
+          description: Request marked ACTIVE; start snapshot queued
         "400":
           description: Malformed request or caller UUID
           content:
@@ -425,8 +381,8 @@ paths:
           format: uuid
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: Caller UUID. Request Service does not currently authenticate
+          this header.
         required: true
         schema:
           type: string
@@ -463,8 +419,8 @@ paths:
       tags:
       - Activity requests
       summary: Close registration
-      description: The organizer stops accepting new players while the request remains
-        planned. Existing participants remain in the request.
+      description: The organizer stops new join requests while the request remains
+        planned. Earlier pending requests can still be approved.
       operationId: closeRegistration
       parameters:
       - name: id
@@ -476,8 +432,8 @@ paths:
           format: uuid
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: Caller UUID. Request Service does not currently authenticate
+          this header.
         required: true
         schema:
           type: string
@@ -514,8 +470,9 @@ paths:
       tags:
       - Activity requests
       summary: Leave request
-      description: "An accepted player leaves a planned request, freeing a place.\
-        \ The organizer cannot leave."
+      description: Removes an accepted or pending player from a planned request. An
+        application withdrawn this way can no longer be approved. Rejoining requires
+        a new application; the organizer cannot leave.
       operationId: leaveRequest
       parameters:
       - name: id
@@ -528,8 +485,8 @@ paths:
         example: 123e4567-e89b-12d3-a456-426614174000
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: Caller UUID. Request Service does not currently authenticate
+          this header.
         required: true
         schema:
           type: string
@@ -560,8 +517,8 @@ paths:
       tags:
       - Activity requests
       summary: Kick a participant
-      description: The organizer kicks an accepted player from a planned request.
-        The player cannot rejoin this request.
+      description: The organizer removes an accepted or pending player from a planned
+        request. The KICKED record is retained to prevent another join request.
       operationId: kickParticipant
       parameters:
       - name: id
@@ -580,8 +537,8 @@ paths:
           format: uuid
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: Caller UUID. Request Service does not currently authenticate
+          this header.
         required: true
         schema:
           type: string
@@ -608,7 +565,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: Request is not planned or player already left or was kicked
+          description: Request is not planned or player was already kicked
           content:
             '*/*':
               schema:
@@ -617,9 +574,11 @@ paths:
     post:
       tags:
       - Activity requests
-      summary: Join request
-      description: Joins a planned request while registration is open and places remain.
-        A player who left may rejoin; a kicked player may not.
+      summary: Request to join
+      description: Creates a PENDING application for a planned request and reserves
+        one place. The organizer reviews it in Request Service. Approval changes the
+        player to ACCEPTED; rejection removes the application. A player who leaves
+        must apply again.
       operationId: joinRequest
       parameters:
       - name: id
@@ -632,15 +591,15 @@ paths:
         example: 123e4567-e89b-12d3-a456-426614174000
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: Caller UUID. Request Service does not currently authenticate
+          this header.
         required: true
         schema:
           type: string
           format: uuid
       responses:
-        "200":
-          description: Player joined
+        "202":
+          description: Application stored as PENDING for organizer review
         "400":
           description: Malformed request data
           content:
@@ -654,8 +613,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/ApiError"
         "409":
-          description: "Registration closed, request full, player already joined or\
-            \ kicked"
+          description: "Registration closed, all places reserved, or player already\
+            \ pending, accepted or kicked"
           content:
             '*/*':
               schema:
@@ -678,8 +637,8 @@ paths:
           format: uuid
       - name: X-User-Id
         in: header
-        description: Caller UUID. Core Service does not currently authenticate this
-          header.
+        description: Caller UUID. Request Service does not currently authenticate
+          this header.
         required: true
         schema:
           type: string
@@ -728,13 +687,74 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/SportDto"
+  /requests/{requestId}/join-requests:
+    get:
+      tags:
+      - Join requests
+      summary: List pending join requests
+      description: Returns pending applications for this request. Only its organizer
+        may view them. A participantId identifies one application and is required
+        when deciding it. An empty array means there are no pending applications.
+        Registration may be closed; existing applications remain visible.
+      operationId: getPendingJoinRequests
+      parameters:
+      - name: requestId
+        in: path
+        description: Activity request UUID
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-User-Id
+        in: header
+        description: Caller UUID supplied by the API Gateway. Request Service does
+          not authenticate this header itself.
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: "Pending applications, possibly empty"
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PendingJoinRequestDto"
+        "400":
+          description: Missing or malformed request or caller UUID
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: Caller is not the organizer
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: Activity request not found
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: Activity request is no longer planned
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ApiError"
   /requests/users/{userId}:
     get:
       tags:
       - Activity requests
       summary: Get a user's activity requests
-      description: "Returns requests organized by or involving the specified user,\
-        \ including inactive requests. Omit statuses to include every request status;\
+      description: "Returns requests organized by the specified user or with their\
+        \ stored participation record, including pending and kicked participants and\
+        \ inactive requests. Players who left or were rejected have no participant\
+        \ record and are not included. Omit statuses to include every request status;\
         \ set forOrganizer to true to return only requests organized by this user."
       operationId: getUserRequestsById
       parameters:
@@ -758,7 +778,6 @@ paths:
             enum:
             - PLANNED
             - ACTIVE
-            - CONFIRMATION
             - COMPLETED
             - CANCELLED
             - FROZEN
@@ -835,7 +854,7 @@ components:
       - title
     ApiError:
       type: object
-      description: Error returned by the Core Service API
+      description: Error returned by the Request Service API
       properties:
         code:
           type: string
@@ -869,8 +888,8 @@ components:
           example: "Outdoor match, bring your own boots"
         sportName:
           type: string
-          description: Sport name
-          example: Football
+          description: "Sport name, also used as the sport ID"
+          example: Футбол
         maxPlayers:
           type: integer
           format: int32
@@ -911,18 +930,14 @@ components:
           enum:
           - PLANNED
           - ACTIVE
-          - CONFIRMATION
           - COMPLETED
           - CANCELLED
           - FROZEN
           example: PLANNED
-        completionErrorMessage:
-          type: string
-          description: "Reason why the latest asynchronous completion check was rejected,\
-            \ if any"
         registrationOpen:
           type: boolean
-          description: Whether new players can join the request
+          description: Whether the organizer has registration open; status and capacity
+            also govern joining
           example: false
         organizerId:
           type: string
@@ -931,7 +946,7 @@ components:
           example: 123e4567-e89b-12d3-a456-426614174002
         participants:
           type: array
-          description: List of all participants in the room
+          description: "Stored participant records, including pending and kicked players"
           items:
             $ref: "#/components/schemas/ParticipantDto"
     ParticipantDto:
@@ -958,13 +973,12 @@ components:
           - PENDING
           - ACCEPTED
           - KICKED
-          - LEFT
           example: ACCEPTED
         joinedAt:
           type: string
           format: date-time
-          description: Timestamp when the user joined the request
-          example: 2026-09-03T12:00:00Z
+          description: Time of acceptance; null if this player was never approved
+          example: 2030-06-15T12:00:00Z
     CreateActivityRequestDto:
       type: object
       description: Data for creating new request
@@ -982,10 +996,10 @@ components:
           maxLength: 500
           minLength: 0
         sportId:
-          type: integer
-          format: int64
-          description: ID of the sport (from /sports)
-          example: 2
+          type: string
+          description: Sport name used as its ID (from GET /sports)
+          example: Футбол
+          minLength: 1
         maxPlayers:
           type: integer
           format: int32
@@ -999,7 +1013,8 @@ components:
         numberOfRounds:
           type: integer
           format: int32
-          description: "Number of rounds to record, from 1 to 10"
+          description: "Planned number of rounds (1–10), sent to Game when the request\
+            \ starts"
           example: 3
           maximum: 10
           minimum: 1
@@ -1031,72 +1046,39 @@ components:
       - numberOfRounds
       - sportId
       - title
-    RecordRoundResultRequestDto:
+    CreateRequestResponseDto:
       type: object
-      description: "Accepted participants who won or lost one round. Both lists must\
-        \ be non-empty, disjoint and equal in size."
+      description: Identifier of the newly created planned request
       properties:
-        winners:
-          type: array
-          description: UUIDs of the round winners; each player may occur only once
-          items:
-            type: string
-            format: uuid
-          minItems: 1
-        losers:
-          type: array
-          description: UUIDs of the round losers; each player may occur only once
-          items:
-            type: string
-            format: uuid
-          minItems: 1
+        requestId:
+          type: string
+          format: uuid
+          description: Request UUID
+          example: 123e4567-e89b-12d3-a456-426614174000
+    JoinDecisionRequestDto:
+      type: object
+      description: Organizer's decision for one pending application
+      properties:
+        accepted:
+          type: boolean
+          description: true accepts the player; false rejects the application and
+            removes its pending record
+          example: true
       required:
-      - losers
-      - winners
-    RoundSubmissionAcceptedDto:
-      type: object
-      description: A round result command was queued for asynchronous processing by
-        Game Service
-      properties:
-        eventId:
-          type: string
-          format: uuid
-        requestId:
-          type: string
-          format: uuid
-        roundNumber:
-          type: integer
-          format: int32
-    CompletionAcceptedDto:
-      type: object
-      description: A request completion check is waiting for Game Service verification
-      properties:
-        requestId:
-          type: string
-          format: uuid
-        status:
-          type: string
-          enum:
-          - PLANNED
-          - ACTIVE
-          - CONFIRMATION
-          - COMPLETED
-          - CANCELLED
-          - FROZEN
+      - accepted
     SportDto:
       type: object
       description: Data transfer object representing a sport category available in
         the system
       properties:
         id:
-          type: integer
-          format: int64
-          description: Unique identifier of the sport
-          example: 1
+          type: string
+          description: Sport ID; equal to its name
+          example: Футбол
         name:
           type: string
-          description: Display name of the sport
-          example: Football
+          description: Display name of the sport; currently also its ID
+          example: Футбол
         minPlayers:
           type: integer
           format: int32
@@ -1128,8 +1110,8 @@ components:
           example: Friendly football match
         sportName:
           type: string
-          description: Sport name
-          example: Football
+          description: "Sport name, also used as the sport ID"
+          example: Футбол
         maxPlayers:
           type: integer
           format: int32
@@ -1156,7 +1138,8 @@ components:
           example: 3
         registrationOpen:
           type: boolean
-          description: Whether new players can join the request
+          description: Whether the organizer has registration open; capacity also
+            governs joining
           example: true
         latitude:
           type: number
@@ -1168,6 +1151,27 @@ components:
           format: double
           description: Longitude (for map marker)
           example: 37.554191
+    PendingJoinRequestDto:
+      type: object
+      description: A pending application to join an activity request. The participant
+        ID identifies this specific application; a later application by the same user
+        gets a new ID.
+      properties:
+        participantId:
+          type: string
+          format: uuid
+          description: ID of the pending participant record to use when deciding
+          example: 11111111-1111-1111-1111-111111111111
+        requestId:
+          type: string
+          format: uuid
+          description: Activity request ID
+          example: 22222222-2222-2222-2222-222222222222
+        userId:
+          type: string
+          format: uuid
+          description: ID of the user asking to join
+          example: 33333333-3333-3333-3333-333333333333
     ActivityRequestInformationDto:
       type: object
       description: Summary of a request organized by or involving the selected user
@@ -1215,7 +1219,6 @@ components:
           enum:
           - PLANNED
           - ACTIVE
-          - CONFIRMATION
           - COMPLETED
           - CANCELLED
           - FROZEN

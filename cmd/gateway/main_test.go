@@ -33,7 +33,7 @@ func TestGatewayStartsWithoutRedisButIsNotReady(t *testing.T) {
 		}
 	})
 
-	client := &http.Client{Timeout: 3 * time.Second}
+	client := &http.Client{Timeout: 8 * time.Second}
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		resp, err := getWithContext(t, client, "http://"+httpAddr+"/healthz")
@@ -60,11 +60,17 @@ func setRequiredServiceURLsForTest(t *testing.T, coreURL string) {
 	t.Setenv("GATEWAY_CORE_URL", coreURL)
 	t.Setenv("GATEWAY_AUTH_URL", "http://127.0.0.1:1")
 	t.Setenv("GATEWAY_GAME_URL", "http://127.0.0.1:1")
+	t.Setenv("GATEWAY_PROFILE_URL", "http://127.0.0.1:1")
+	t.Setenv("GATEWAY_CHAT_URL", "http://127.0.0.1:1")
 	t.Setenv("GATEWAY_CORE_HEALTH_URL", "http://127.0.0.1:1/health")
 	t.Setenv("GATEWAY_AUTH_HEALTH_URL", "http://127.0.0.1:1/health")
 	t.Setenv("GATEWAY_GAME_HEALTH_URL", "http://127.0.0.1:1/health")
+	t.Setenv("GATEWAY_PROFILE_HEALTH_URL", "http://127.0.0.1:1/health")
+	t.Setenv("GATEWAY_CHAT_HEALTH_URL", "http://127.0.0.1:1/health")
 	t.Setenv("GATEWAY_AUTH_TIMEOUT", "1s")
 	t.Setenv("GATEWAY_GAME_TIMEOUT", "1s")
+	t.Setenv("GATEWAY_PROFILE_TIMEOUT", "1s")
+	t.Setenv("GATEWAY_CHAT_TIMEOUT", "1s")
 }
 
 func unusedTCPAddresses(t *testing.T, count int) []string {

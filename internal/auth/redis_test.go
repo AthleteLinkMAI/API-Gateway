@@ -115,3 +115,13 @@ func cancelledContext() (context.Context, context.CancelFunc) {
 func expiredContext() (context.Context, context.CancelFunc) {
 	return context.WithDeadline(context.Background(), time.Now().Add(-time.Second))
 }
+
+func TestRedisBanlistChecksExactUserKey(t *testing.T) {
+	for _, count := range []int64{0, 1} {
+		client := &existsClientStub{count: count}
+		banned, err := NewRedisDenylist(client).IsBanned(t.Context(), testUserID)
+		if err != nil || banned != (count != 0) || !reflect.DeepEqual(client.keys, []string{"user:banlist:" + testUserID}) {
+			t.Fatalf("banned=%v error=%v keys=%q", banned, err, client.keys)
+		}
+	}
+}

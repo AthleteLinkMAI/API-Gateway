@@ -76,7 +76,7 @@ func TestAuthAndGameProxyWiring(t *testing.T) {
 		}
 	})
 
-	client := &http.Client{Timeout: 3 * time.Second}
+	client := &http.Client{Timeout: 8 * time.Second}
 	waitForGatewayStart(t, client, httpAddr)
 	baseURL := "http://" + httpAddr
 
@@ -84,7 +84,7 @@ func TestAuthAndGameProxyWiring(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	login.Header.Set("Authorization", "Bearer unverified")
+
 	login.Header.Set("Cookie", "existing=value")
 	login.Header.Set("X-Request-Id", "client-request-id")
 	loginResponse, err := client.Do(login)

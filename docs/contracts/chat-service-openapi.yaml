@@ -1,0 +1,520 @@
+openapi: 3.1.0
+info:
+  title: OpenAPI definition
+  version: v0
+servers:
+- url: http://localhost:8080/api/v1
+  description: Generated server url
+paths:
+  /report:
+    get:
+      tags:
+      - report-controller
+      operationId: getReportById
+      parameters:
+      - name: X-User-Role
+        in: header
+        required: true
+        schema:
+          type: string
+          enum:
+          - ADMIN
+          - MODERATOR
+          - USER
+      - name: reportId
+        in: query
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReportControllerDto"
+    post:
+      tags:
+      - report-controller
+      operationId: report
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportToCreate"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ReportControllerDto"
+  /message/private:
+    post:
+      tags:
+      - message-controller
+      operationId: createPrivateMessage
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PrivateMessageToCreateControllerDto"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PrivateMessageControllerDto"
+  /message/chat:
+    post:
+      tags:
+      - message-controller
+      operationId: createChatMessage
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChatMessageControllerDto"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ChatMessageControllerDto"
+  /message/activity-request:
+    post:
+      tags:
+      - message-controller
+      operationId: createActivityRequestMessage
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ActivityRequestMessageToCreateControllerDto"
+        required: true
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/ActivityRequestMessageControllerDto"
+  /report/{userId}:
+    get:
+      tags:
+      - report-controller
+      operationId: getAllPaginatedShortReportsByUserId
+      parameters:
+      - name: X-User-Role
+        in: header
+        required: true
+        schema:
+          type: string
+          enum:
+          - ADMIN
+          - MODERATOR
+          - USER
+      - name: userId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: page
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int32
+      - name: size
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShortReportControllerDto"
+  /report/all:
+    get:
+      tags:
+      - report-controller
+      operationId: getAllPaginatedShortReports
+      parameters:
+      - name: X-User-Role
+        in: header
+        required: true
+        schema:
+          type: string
+          enum:
+          - ADMIN
+          - MODERATOR
+          - USER
+      - name: page
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int32
+      - name: size
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ShortReportControllerDto"
+  /message/private/{recipientId}:
+    get:
+      tags:
+      - message-controller
+      operationId: getPaginatedPrivateMessagesByRecipientId
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: recipientId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: size
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PaginatedPrivateMessagesControllerDto"
+  /message/chat/{chatId}:
+    get:
+      tags:
+      - message-controller
+      operationId: getPaginatedChatMessagesByChatId
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: chatId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: size
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PaginatedChatMessagesControllerDto"
+  /message/activity-request/{activityRequestId}:
+    get:
+      tags:
+      - message-controller
+      operationId: getPaginatedActivityRequestMessagesByActivityRequestId
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: activityRequestId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: size
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: int32
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PaginatedActivityRequestMessagesControllerDto"
+  /report/{responderId}:
+    delete:
+      tags:
+      - report-controller
+      operationId: closeAllReportsByResponderId
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-User-Role
+        in: header
+        required: true
+        schema:
+          type: string
+          enum:
+          - ADMIN
+          - MODERATOR
+          - USER
+      - name: responderId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: No Content
+components:
+  schemas:
+    ReportToCreate:
+      type: object
+      properties:
+        responderId:
+          type: string
+          format: uuid
+        activityRequestId:
+          type: string
+          format: uuid
+        messageId:
+          type: string
+          format: uuid
+        violation:
+          type: string
+          enum:
+          - FRAUD
+          - OFFENCE
+        description:
+          type: string
+      required:
+      - responderId
+      - violation
+    ReportControllerDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        reporterId:
+          type: string
+          format: uuid
+        responderId:
+          type: string
+          format: uuid
+        activityRequestId:
+          type: string
+          format: uuid
+        messageId:
+          type: string
+          format: uuid
+        violation:
+          type: string
+          enum:
+          - FRAUD
+          - OFFENCE
+        description:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    PrivateMessageToCreateControllerDto:
+      type: object
+      properties:
+        recipientId:
+          type: string
+          format: uuid
+        message:
+          type: string
+    PrivateMessageControllerDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        senderId:
+          type: string
+          format: uuid
+        recipientId:
+          type: string
+          format: uuid
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    ChatMessageControllerDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        senderId:
+          type: string
+          format: uuid
+        chatId:
+          type: string
+          format: uuid
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    ActivityRequestMessageToCreateControllerDto:
+      type: object
+      properties:
+        activityRequestId:
+          type: string
+          format: uuid
+        message:
+          type: string
+    ActivityRequestMessageControllerDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        senderId:
+          type: string
+          format: uuid
+        activityRequestId:
+          type: string
+          format: uuid
+        message:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    ShortReportControllerDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        reporterId:
+          type: string
+          format: uuid
+        responderId:
+          type: string
+          format: uuid
+        violation:
+          type: string
+          enum:
+          - FRAUD
+          - OFFENCE
+    PaginatedPrivateMessagesControllerDto:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/PrivateMessageControllerDto"
+        cursor:
+          type: string
+          format: uuid
+    PaginatedChatMessagesControllerDto:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessageControllerDto"
+        cursor:
+          type: string
+          format: uuid
+    PaginatedActivityRequestMessagesControllerDto:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ActivityRequestMessageControllerDto"
+        cursor:
+          type: string
+          format: uuid

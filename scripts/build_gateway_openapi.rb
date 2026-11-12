@@ -11,7 +11,9 @@ HTTP_METHODS = %w[get post put patch delete head options trace].freeze
 SERVICE_FILES = {
   "Core" => "core-service-openapi.yaml",
   "Auth" => "auth-service-openapi.yaml",
-  "Game" => "game-service-openapi.yaml"
+  "Game" => "game-service-openapi.yaml",
+  "Profile" => "profile-service-openapi.yaml",
+  "Chat" => "chat-service-openapi.yaml"
 }.freeze
 
 def rewrite_refs(value, service)
@@ -31,31 +33,27 @@ end
 
 def route_policies
   source = ROOT.join("internal/httpapi/routes.go").read
-  pattern = /\{http\.Method(\w+),\s*"([^"]+)",\s*(authUpstream|gameUpstream|coreUpstream),\s*(\w+)\}/
+  pattern = /\{http\.Method(\w+),\s*"([^"]+)",\s*(authUpstream|gameUpstream|coreUpstream|profileUpstream|chatUpstream),\s*(\w+),\s*"([^"]*)"\}/
   policies = {}
-  source.scan(pattern).each do |method, path, upstream, access|
+  source.scan(pattern).each do |method, path, upstream, access, identity_header|
     key = [method.downcase, path]
     raise "duplicate Gateway route: #{key.join(' ')}" if policies.key?(key)
 
-    unless %w[publicAccess authenticatedAccess ownUserAccess currentUserAccess].include?(access)
+    unless %w[publicAccess authenticatedAccess roleAccess].include?(access)
       raise "unknown access policy for #{key.join(' ')}: #{access}"
     end
-    policies[key] = { "upstream" => upstream, "access" => access }
+    policies[key] = { "upstream" => upstream, "access" => access, "identity_header" => identity_header }
   end
   raise "no routes found in internal/httpapi/routes.go" if policies.empty?
 
   policies
 end
 
-def gateway_error_responses(operation, access)
+def gateway_error_responses(operation)
   responses = operation.fetch("responses")
-  if access != "publicAccess"
-    responses["401"] ||= { "description" => "Gateway отклонил запрос из-за отсутствующего или недействительного токена доступа." }
-    responses["503"] ||= { "description" => "Gateway не смог завершить проверку списка отозванных токенов доступа." }
-  end
-  if access == "ownUserAccess"
-    responses["403"] ||= { "description" => "Gateway отклонил userId, не совпадающий с субъектом токена доступа." }
-  end
+  responses["401"] ||= { "description" => "Gateway отклонил отсутствующий, недействительный или отозванный access JWT. На публичной операции JWT проверяется только при наличии Authorization." }
+  responses["403"] ||= { "description" => "Пользователь заблокирован или отсутствует требуемая для операции роль." }
+  responses["503"] ||= { "description" => "Ошибка проверки Redis, кроме недоступности или тайм-аута. При недоступности и тайм-ауте запрос допускается." }
   responses["502"] ||= { "description" => "Gateway не смог соединиться с целевым сервисом." }
   responses["504"] ||= { "description" => "Gateway не дождался ответа целевого сервиса до истечения тайм-аута." }
 
@@ -98,9 +96,9 @@ operation_ids = {}
 output = {
   "openapi" => "3.1.0",
   "info" => {
-    "title" => "AthleteLink — шлюз API",
+    "title" => "AthleteLink API Gateway",
     "version" => "draft",
-    "description" => "Черновой публичный HTTP-контракт, собранный из снимков OpenAPI Core, Auth и Game в репозитории и таблицы маршрутов Gateway. Gateway пересылает тела запросов и ответов целевых сервисов без преобразования и принимает только пары метода и пути из своей таблицы маршрутов. Снимки сервисов объявляют /api/v1 в servers.url; соответствие работающим сборкам не проверено. Для собственных ошибок Gateway нет обязательной схемы тела ответа."
+    "description" => "Публичный HTTP-контракт пяти сервисов AthleteLink, собранный из сохранённых снимков OpenAPI и таблицы маршрутов Gateway. Тела запросов и ответов передаются без преобразования. Gateway проверяет JWT, banlist и denylist. На публичных операциях Authorization необязателен, но переданный токен проверяется. Доверенные заголовки идентичности и роли выставляет Gateway. Для собственных ошибок Gateway нет обязательной схемы тела ответа."
   },
   "servers" => [{ "url" => "/", "description" => "Корень Gateway; источник развёртывания настраивается отдельно." }],
   "paths" => {},
@@ -123,12 +121,8 @@ SERVICE_FILES.each do |service, filename|
     next if service == "Auth" && source_path == "/health"
 
     public_path = "/api/v1#{source_path}"
-    current_user = service == "Auth" && source_path.end_with?("/{userId}") &&
-      path_item.keys.any? { |method| policies[[method, public_path.delete_suffix("/{userId}")]]&.fetch("access") == "currentUserAccess" }
-    public_path = public_path.delete_suffix("/{userId}") if current_user
-    raise "duplicate public path: #{public_path}" if output["paths"].key?(public_path)
-
-    output["paths"][public_path] = {}
+    public_path = public_path.sub("{responderId}", "{userId}") if service == "Chat"
+    output["paths"][public_path] ||= {}
     path_item.each do |method, operation|
       next unless HTTP_METHODS.include?(method)
 
@@ -138,30 +132,31 @@ SERVICE_FILES.each do |service, filename|
       raise "wrong upstream for #{key.join(' ')}" unless policy["upstream"] == expected
 
       access = policy["access"]
-      if current_user && access != "currentUserAccess"
-        raise "invalid current-user route policy: #{key.join(' ')}"
-      end
+      headers = operation.fetch("parameters", []).select { |parameter| parameter["in"] == "header" }.map { |parameter| parameter["name"].downcase }
+      role_required = headers.include?("x-user-role")
+      raise "role policy mismatch: #{key.join(' ')}" unless (access == "roleAccess") == role_required
+      identity_header = headers.include?("userid") ? "userId" : "X-User-Id"
+      raise "identity header mismatch: #{key.join(' ')}" unless policy["identity_header"] == identity_header
       seen_routes[key] = true
-      if service == "Core"
-        # Core expects this trusted header from the Gateway, never from its public caller.
-        operation["parameters"]&.reject! do |parameter|
-          parameter["in"] == "header" && parameter["name"].casecmp?("X-User-Id")
+      operation["parameters"]&.reject! do |parameter|
+        parameter["in"] == "header" && %w[x-user-id x-user-role userid].include?(parameter["name"].downcase)
+      end
+      if service == "Chat"
+        operation["parameters"]&.each do |parameter|
+          parameter["name"] = "userId" if parameter["in"] == "path" && parameter["name"] == "responderId"
         end
       end
+      raise "duplicate public operation: #{key.join(' ')}" if output["paths"][public_path].key?(method)
 
       operation_id = operation.fetch("operationId")
       raise "duplicate operationId: #{operation_id}" if operation_ids.key?(operation_id)
 
       operation_ids[operation_id] = true
-      operation["security"] = access == "publicAccess" ? [] : [{ "BearerAuth" => [] }]
-      if current_user
-        operation["parameters"]&.reject! { |parameter| parameter["in"] == "path" && parameter["name"] == "userId" }
-        operation["description"] = [operation["description"], "Gateway пересылает этот вызов на #{public_path}/{sub}, используя только субъект проверенного токена доступа. Клиентские заголовки идентичности и параметры запроса не могут выбрать пользователя."].compact.join("\n\n")
+      operation["security"] = access == "publicAccess" ? [{}, { "BearerAuth" => [] }] : [{ "BearerAuth" => [] }]
+      if access == "publicAccess"
+        operation["description"] = [operation["description"], "Авторизация необязательна. Если Authorization передан, Gateway проверяет JWT, отзыв токена и бан пользователя."].compact.join("\n\n")
       end
-      if access == "ownUserAccess"
-        operation["description"] = [operation["description"], "Gateway требует совпадения userId с субъектом токена доступа."].compact.join("\n\n")
-      end
-      gateway_error_responses(operation, access)
+      gateway_error_responses(operation)
       output["paths"][public_path][method] = operation
     end
   end
@@ -173,7 +168,7 @@ end
 }.each do |path, operation_id|
   key = ["get", path]
   policy = policies.fetch(key)
-  raise "invalid current-player route policy: #{path}" unless policy == { "upstream" => "gameUpstream", "access" => "authenticatedAccess" }
+  raise "invalid current-player route policy: #{path}" unless policy == { "upstream" => "gameUpstream", "access" => "authenticatedAccess", "identity_header" => "X-User-Id" }
   raise "duplicate public path: #{path}" if output["paths"].key?(path)
   raise "duplicate operationId: #{operation_id}" if operation_ids.key?(operation_id)
 
@@ -211,7 +206,6 @@ end
 check_refs.call(output)
 
 document = "# Сгенерировано scripts/build_gateway_openapi.rb из снимков сервисов в репозитории.\n"
-document += "# Черновик: соответствие работающих сборок Core, Auth и Game снимкам не проверено.\n"
 document += YAML.dump(output)
 
 if ARGV == ["--check"]

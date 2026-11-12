@@ -133,6 +133,9 @@ func recordVerifiedIdentity(ctx context.Context, identity requestcontext.Identit
 
 func writeAccessError(w http.ResponseWriter, err error) {
 	status := http.StatusUnauthorized
+	if errors.Is(err, auth.ErrUserBanned) {
+		status = http.StatusForbidden
+	}
 	if errors.Is(err, auth.ErrCheckUnavailable) {
 		status = http.StatusServiceUnavailable
 	}
@@ -150,38 +153,28 @@ func bearerToken(values []string) (string, bool) {
 	return token, true
 }
 
-func withOwnUser(next http.Handler) http.Handler {
+func withOptionalAccessAuth(next http.Handler, verifier AccessVerifier, writeTimeout time.Duration) http.Handler {
+	secured := withAccessAuth(next, verifier, writeTimeout)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		match, matched := findAPIRoute(r.Method, r.URL.EscapedPath())
-		identity, verified := requestcontext.IdentityFrom(r.Context())
-		if !matched || match.spec.access != ownUserAccess || !verified {
-			recordFailure(r.Context(), "own_user_check_failed")
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-			return
+		for name := range r.Header {
+			if strings.EqualFold(name, "Authorization") {
+				secured.ServeHTTP(w, r)
+				return
+			}
 		}
-		if !strings.EqualFold(match.userID, identity.UserID) {
-			recordFailure(r.Context(), "own_user_mismatch")
-			http.Error(w, "Forbidden", http.StatusForbidden)
-			return
-		}
-
 		next.ServeHTTP(w, r)
 	})
 }
 
-func withCurrentUser(next http.Handler) http.Handler {
+func withRole(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		match, matched := findAPIRoute(r.Method, r.URL.EscapedPath())
-		identity, verified := requestcontext.IdentityFrom(r.Context())
-		if !matched || match.spec.access != currentUserAccess || !verified {
-			recordFailure(r.Context(), "current_user_check_failed")
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		identity, _ := requestcontext.IdentityFrom(r.Context())
+		if identity.Role != "ADMIN" && identity.Role != "MODERATOR" && identity.Role != "USER" {
+			recordFailure(r.Context(), "role_missing_or_invalid")
+			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
-		out := r.Clone(r.Context())
-		out.URL.Path = match.spec.pattern + "/" + identity.UserID
-		out.URL.RawPath = ""
-		next.ServeHTTP(w, out)
+		next.ServeHTTP(w, r)
 	})
 }
 

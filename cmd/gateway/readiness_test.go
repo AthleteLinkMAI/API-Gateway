@@ -20,19 +20,21 @@ func TestReadinessChecksRedisAndEveryService(t *testing.T) {
 		failedPath string
 		status     int
 		wantStatus int
-		wantCalls  [3]int32
+		wantCalls  [5]int32
 	}{
-		{name: "all healthy", wantStatus: http.StatusOK, wantCalls: [3]int32{1, 1, 1}},
+		{name: "all healthy", wantStatus: http.StatusOK, wantCalls: [5]int32{1, 1, 1, 1, 1}},
 		{name: "Redis unavailable", redisError: errors.New("unavailable"), wantStatus: http.StatusServiceUnavailable},
-		{name: "Auth unavailable", failedPath: "/auth", status: http.StatusServiceUnavailable, wantStatus: http.StatusServiceUnavailable, wantCalls: [3]int32{1, 0, 0}},
-		{name: "Core unavailable", failedPath: "/core", status: http.StatusInternalServerError, wantStatus: http.StatusServiceUnavailable, wantCalls: [3]int32{1, 1, 0}},
-		{name: "Game unavailable", failedPath: "/game", status: http.StatusNotFound, wantStatus: http.StatusServiceUnavailable, wantCalls: [3]int32{1, 1, 1}},
-		{name: "Auth redirect is not followed", failedPath: "/auth", status: http.StatusFound, wantStatus: http.StatusServiceUnavailable, wantCalls: [3]int32{1, 0, 0}},
+		{name: "Auth unavailable", failedPath: "/auth", status: http.StatusServiceUnavailable, wantStatus: http.StatusServiceUnavailable, wantCalls: [5]int32{1, 0, 0}},
+		{name: "Core unavailable", failedPath: "/core", status: http.StatusInternalServerError, wantStatus: http.StatusServiceUnavailable, wantCalls: [5]int32{1, 1, 0}},
+		{name: "Game unavailable", failedPath: "/game", status: http.StatusNotFound, wantStatus: http.StatusServiceUnavailable, wantCalls: [5]int32{1, 1, 1}},
+		{name: "Profile unavailable", failedPath: "/profile", status: 503, wantStatus: 503, wantCalls: [5]int32{1, 1, 1, 1, 0}},
+		{name: "Chat unavailable", failedPath: "/chat", status: 503, wantStatus: 503, wantCalls: [5]int32{1, 1, 1, 1, 1}},
+		{name: "Auth redirect is not followed", failedPath: "/auth", status: http.StatusFound, wantStatus: http.StatusServiceUnavailable, wantCalls: [5]int32{1, 0, 0}},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			var calls [3]atomic.Int32
+			var calls [5]atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method != http.MethodGet {
 					t.Errorf("health method = %s, want GET", r.Method)
@@ -47,6 +49,10 @@ func TestReadinessChecksRedisAndEveryService(t *testing.T) {
 					calls[1].Add(1)
 				case "/game":
 					calls[2].Add(1)
+				case "/profile":
+					calls[3].Add(1)
+				case "/chat":
+					calls[4].Add(1)
 				default:
 					t.Errorf("unexpected health path %q", r.URL.Path)
 				}
@@ -62,10 +68,12 @@ func TestReadinessChecksRedisAndEveryService(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			cfg := config.Config{
-				HealthTimeout: time.Second,
-				AuthHealthURL: server.URL + "/auth",
-				CoreHealthURL: server.URL + "/core",
-				GameHealthURL: server.URL + "/game",
+				HealthTimeout:    time.Second,
+				AuthHealthURL:    server.URL + "/auth",
+				CoreHealthURL:    server.URL + "/core",
+				GameHealthURL:    server.URL + "/game",
+				ProfileHealthURL: server.URL + "/profile",
+				ChatHealthURL:    server.URL + "/chat",
 			}
 			var redisCalls atomic.Int32
 			checkRedis := func(ctx context.Context) error {
@@ -106,10 +114,12 @@ func TestReadinessRecoversWhenServiceRecovers(t *testing.T) {
 	defer server.Close()
 
 	cfg := config.Config{
-		HealthTimeout: time.Second,
-		AuthHealthURL: server.URL + "/auth",
-		CoreHealthURL: server.URL + "/core",
-		GameHealthURL: server.URL + "/game",
+		HealthTimeout:    time.Second,
+		AuthHealthURL:    server.URL + "/auth",
+		CoreHealthURL:    server.URL + "/core",
+		GameHealthURL:    server.URL + "/game",
+		ProfileHealthURL: server.URL + "/profile",
+		ChatHealthURL:    server.URL + "/chat",
 	}
 	handler := readyTestHandler(newReadinessCheck(cfg, func(context.Context) error { return nil }))
 	for _, tc := range []struct {
@@ -136,10 +146,11 @@ func TestReadinessRejectsHealthConnectionFailure(t *testing.T) {
 	server.Close()
 
 	cfg := config.Config{
-		HealthTimeout: time.Second,
-		AuthHealthURL: failedURL,
-		CoreHealthURL: failedURL,
-		GameHealthURL: failedURL,
+		HealthTimeout:    time.Second,
+		AuthHealthURL:    failedURL,
+		CoreHealthURL:    failedURL,
+		GameHealthURL:    failedURL,
+		ProfileHealthURL: failedURL, ChatHealthURL: failedURL,
 	}
 	handler := readyTestHandler(newReadinessCheck(cfg, func(context.Context) error { return nil }))
 	response := httptest.NewRecorder()
@@ -157,10 +168,12 @@ func TestReadinessUsesOneDeadlineForAllChecks(t *testing.T) {
 	defer server.Close()
 
 	cfg := config.Config{
-		HealthTimeout: 120 * time.Millisecond,
-		AuthHealthURL: server.URL + "/auth",
-		CoreHealthURL: server.URL + "/core",
-		GameHealthURL: server.URL + "/game",
+		HealthTimeout:    120 * time.Millisecond,
+		AuthHealthURL:    server.URL + "/auth",
+		CoreHealthURL:    server.URL + "/core",
+		GameHealthURL:    server.URL + "/game",
+		ProfileHealthURL: server.URL + "/profile",
+		ChatHealthURL:    server.URL + "/chat",
 	}
 	handler := readyTestHandler(newReadinessCheck(cfg, func(context.Context) error { return nil }))
 	response := httptest.NewRecorder()

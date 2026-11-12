@@ -123,3 +123,5 @@ func TestCoreAuthenticationAndRequestID(t *testing.T) {
 		})
 	}
 }
+
+func (stub *httpDenylistStub) IsBanned(context.Context, string) (bool, error) { return false, nil }

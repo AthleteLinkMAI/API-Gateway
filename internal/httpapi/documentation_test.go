@@ -85,7 +85,7 @@ func TestDocumentationIncludesCurrentServiceOperations(t *testing.T) {
 		}
 	}
 	if !strings.Contains(contract, "  \"/api/v1/user\":\n") ||
-		!strings.Contains(contract, "#/components/schemas/Auth_UserPublicControllerDto") {
+		!strings.Contains(contract, "#/components/schemas/Profile_UserPublicControllerDto") {
 		t.Error("embedded contract lacks the user lookup route or public user response schema")
 	}
 	for _, path := range []string{

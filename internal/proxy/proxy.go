@@ -91,7 +91,7 @@ func RewriteAuth(pr *httputil.ProxyRequest) {
 	token, tokenOK := requestcontext.VerifiedAccessTokenFrom(pr.In.Context())
 	if identityOK && tokenOK {
 		pr.Out.Header.Set("Authorization", "Bearer "+token)
-		pr.Out.Header.Set("X-User-Id", identity.UserID)
+		forwardIdentity(pr, identity)
 	}
 }
 
@@ -111,7 +111,24 @@ func rewriteAuthenticatedRequest(pr *httputil.ProxyRequest) {
 	rewriteRequest(pr, true)
 
 	identity, _ := requestcontext.IdentityFrom(pr.In.Context())
-	pr.Out.Header.Set("X-User-Id", identity.UserID)
+	forwardIdentity(pr, identity)
+}
+
+func RewriteProfile(pr *httputil.ProxyRequest) { rewriteAuthenticatedRequest(pr) }
+
+func RewriteChat(pr *httputil.ProxyRequest) { rewriteAuthenticatedRequest(pr) }
+
+func forwardIdentity(pr *httputil.ProxyRequest, identity requestcontext.Identity) {
+	headers, ok := requestcontext.IdentityHeadersFrom(pr.In.Context())
+	if !ok {
+		headers.UserIDHeader = "X-User-Id"
+	}
+	if headers.UserIDHeader != "" {
+		pr.Out.Header.Set(headers.UserIDHeader, identity.UserID)
+	}
+	if headers.IncludeRole {
+		pr.Out.Header.Set("X-User-Role", identity.Role)
+	}
 }
 
 func rewriteRequest(pr *httputil.ProxyRequest, stripCookie bool) {
@@ -129,6 +146,8 @@ func rewriteRequest(pr *httputil.ProxyRequest, stripCookie bool) {
 		if lower == "authorization" ||
 			(stripCookie && lower == "cookie") ||
 			lower == "x-user-id" ||
+			lower == "userid" ||
+			lower == "x-user-role" ||
 			lower == "x-request-id" ||
 			lower == "forwarded" ||
 			lower == "x-real-ip" ||

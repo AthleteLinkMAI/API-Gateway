@@ -17,9 +17,13 @@ type HandlerOptions struct {
 	CoreProxy       http.Handler
 	AuthHandler     http.Handler
 	GameHandler     http.Handler
+	ProfileHandler  http.Handler
+	ChatHandler     http.Handler
 	CoreTimeout     time.Duration
 	AuthTimeout     time.Duration
 	GameTimeout     time.Duration
+	ProfileTimeout  time.Duration
+	ChatTimeout     time.Duration
 	WriteTimeout    time.Duration
 	Verifier        AccessVerifier
 	NewRequestID    func() string
@@ -37,43 +41,40 @@ func NewHandler(options HandlerOptions) http.Handler {
 	healthMux.HandleFunc("GET /readyz", ready(options.Readiness, options.CheckDependency))
 	documentation := newDocumentationHandler()
 
-	timedCore := withUpstreamTimeout(availableHandler(options.CoreProxy), options.CoreTimeout, options.WriteTimeout)
-	securedCore := withAccessAuth(timedCore, options.Verifier, options.WriteTimeout)
-	authTarget := withUpstreamTimeout(availableHandler(options.AuthHandler), options.AuthTimeout, options.WriteTimeout)
-	authProtected := withAccessAuth(authTarget, options.Verifier, options.WriteTimeout)
-	authCurrentUser := withAccessAuth(withCurrentUser(authTarget), options.Verifier, options.WriteTimeout)
-	authOwnUser := withAccessAuth(withOwnUser(authTarget), options.Verifier, options.WriteTimeout)
-	gameTarget := withUpstreamTimeout(availableHandler(options.GameHandler), options.GameTimeout, options.WriteTimeout)
-	gameHandler := withAccessAuth(gameTarget, options.Verifier, options.WriteTimeout)
-
+	targets := map[upstream]http.Handler{
+		coreUpstream:    withUpstreamTimeout(availableHandler(options.CoreProxy), options.CoreTimeout, options.WriteTimeout),
+		authUpstream:    withUpstreamTimeout(availableHandler(options.AuthHandler), options.AuthTimeout, options.WriteTimeout),
+		gameUpstream:    withUpstreamTimeout(availableHandler(options.GameHandler), options.GameTimeout, options.WriteTimeout),
+		profileUpstream: withUpstreamTimeout(availableHandler(options.ProfileHandler), options.ProfileTimeout, options.WriteTimeout),
+		chatUpstream:    withUpstreamTimeout(availableHandler(options.ChatHandler), options.ChatTimeout, options.WriteTimeout),
+	}
+	protected := make(map[upstream]http.Handler, len(targets))
+	roleProtected := make(map[upstream]http.Handler, len(targets))
+	optional := make(map[upstream]http.Handler, len(targets))
+	for service, target := range targets {
+		protected[service] = withAccessAuth(target, options.Verifier, options.WriteTimeout)
+		roleProtected[service] = withAccessAuth(withRole(target), options.Verifier, options.WriteTimeout)
+		optional[service] = withOptionalAccessAuth(target, options.Verifier, options.WriteTimeout)
+	}
 	apiHandler := withAPIPreflight(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		match, matched := findAPIRoute(r.Method, r.URL.EscapedPath())
 		if !matched {
-			requestcontext.UpdateDiagnostics(r.Context(), func(d *requestcontext.DiagnosticFields) {
-				d.ErrorKind = "method_not_allowed"
-			})
+			recordFailure(r.Context(), "method_not_allowed")
 			w.Header().Set("Allow", allowedMethods(r.URL.EscapedPath()))
 			http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 			return
 		}
-
-		switch match.spec.upstream {
-		case authUpstream:
-			switch match.spec.access {
-			case publicAccess:
-				authTarget.ServeHTTP(w, r)
-			case currentUserAccess:
-				authCurrentUser.ServeHTTP(w, r)
-			case ownUserAccess:
-				authOwnUser.ServeHTTP(w, r)
-			default:
-				authProtected.ServeHTTP(w, r)
-			}
-		case coreUpstream:
-			securedCore.ServeHTTP(w, r)
-		case gameUpstream:
-			gameHandler.ServeHTTP(w, r)
+		ctx := requestcontext.WithIdentityHeaders(r.Context(), requestcontext.IdentityHeaders{
+			UserIDHeader: match.spec.identityHeader, IncludeRole: match.spec.access == roleAccess,
+		})
+		target := protected[match.spec.upstream]
+		switch match.spec.access {
+		case publicAccess:
+			target = optional[match.spec.upstream]
+		case roleAccess:
+			target = roleProtected[match.spec.upstream]
 		}
+		target.ServeHTTP(w, r.WithContext(ctx))
 	}), options.CORSOrigins)
 
 	router := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

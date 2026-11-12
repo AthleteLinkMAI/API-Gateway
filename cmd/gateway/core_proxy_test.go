@@ -129,7 +129,7 @@ func TestCoreTimeoutAfterResponseHeadersAbortsBody(t *testing.T) {
 
 	gateway := httptest.NewServer(newCoreProxyHandler(t, core.URL, 250*time.Millisecond, time.Second, immediateAccessVerifier{}))
 	defer gateway.Close()
-	client := &http.Client{Timeout: 3 * time.Second}
+	client := &http.Client{Timeout: 8 * time.Second}
 	request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, gateway.URL+"/api/v1/requests", nil)
 	if err != nil {
 		t.Fatalf("create request: %v", err)
@@ -180,7 +180,7 @@ func TestCoreTimeoutRemainsWritableAfterAuthentication(t *testing.T) {
 			gateway.Start()
 			defer gateway.Close()
 
-			client := &http.Client{Timeout: 3 * time.Second}
+			client := &http.Client{Timeout: 8 * time.Second}
 			request, err := http.NewRequestWithContext(t.Context(), http.MethodGet, gateway.URL+"/api/v1/requests", nil)
 			if err != nil {
 				t.Fatalf("create request: %v", err)

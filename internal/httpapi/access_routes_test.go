@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -34,13 +33,15 @@ func newAccessRouteHandler(verifier httpapi.AccessVerifier, authHandler, gameHan
 		CoreProxy:       http.NotFoundHandler(),
 		AuthHandler:     authHandler,
 		GameHandler:     gameHandler,
-		CoreTimeout:     time.Second,
-		AuthTimeout:     time.Second,
-		GameTimeout:     time.Second,
-		WriteTimeout:    2 * time.Second,
-		Verifier:        verifier,
-		NewRequestID:    func() string { return httpTestRequestID },
-		CORSOrigins:     []string{"https://app.example"},
+		ProfileHandler:  authHandler, ChatHandler: gameHandler,
+		CoreTimeout:    time.Second,
+		AuthTimeout:    time.Second,
+		GameTimeout:    time.Second,
+		ProfileTimeout: time.Second, ChatTimeout: time.Second,
+		WriteTimeout: 2 * time.Second,
+		Verifier:     verifier,
+		NewRequestID: func() string { return httpTestRequestID },
+		CORSOrigins:  []string{"https://app.example"},
 	})
 }
 
@@ -52,7 +53,7 @@ func TestProtectedAuthPreflightBypassesAccessVerifier(t *testing.T) {
 		w.WriteHeader(http.StatusAccepted)
 	})
 	handler := newAccessRouteHandler(verifier, authHandler, http.NotFoundHandler())
-	request := httptest.NewRequestWithContext(t.Context(), http.MethodOptions, "/api/v1/session/get-all/"+httpTestUserID, nil)
+	request := httptest.NewRequestWithContext(t.Context(), http.MethodOptions, "/api/v1/session", nil)
 	request.Header.Set("Origin", "https://app.example")
 	request.Header.Set("Access-Control-Request-Method", http.MethodGet)
 	response := httptest.NewRecorder()
@@ -65,9 +66,9 @@ func TestProtectedAuthPreflightBypassesAccessVerifier(t *testing.T) {
 
 func TestPublicAuthOperationsBypassAccessVerifier(t *testing.T) {
 	for _, path := range []string{
-		"/api/v1/verification/verify-password-reset",
+		"/api/v1/verification/password-reset",
 		"/api/v1/verification/send-password-reset-code",
-		"/api/v1/user/register",
+		"/api/v1/user",
 		"/api/v1/auth/refresh",
 		"/api/v1/auth/login",
 	} {
@@ -97,15 +98,15 @@ func TestPublicAuthOperationsBypassAccessVerifier(t *testing.T) {
 func TestProtectedServiceOperationsRequireBearer(t *testing.T) {
 	const otherUser = "123e4567-e89b-42d3-a456-426614174099"
 	for _, tc := range []struct{ method, path string }{
-		{http.MethodPut, "/api/v1/user/update-user"},
-		{http.MethodPut, "/api/v1/user/change-password"},
-		{http.MethodPut, "/api/v1/user/change-email"},
-		{http.MethodPost, "/api/v1/verification/verify-email"},
+		{http.MethodPut, "/api/v1/user"},
+		{http.MethodPut, "/api/v1/user/password"},
+		{http.MethodPut, "/api/v1/user/email"},
+		{http.MethodPost, "/api/v1/verification/email"},
 		{http.MethodPost, "/api/v1/verification/send-email-verification-code"},
-		{http.MethodGet, "/api/v1/session/get-all/" + httpTestUserID},
-		{http.MethodDelete, "/api/v1/user/delete"},
-		{http.MethodDelete, "/api/v1/session/terminate/" + httpTestUserID},
-		{http.MethodDelete, "/api/v1/session/terminate-all/" + httpTestUserID},
+		{http.MethodGet, "/api/v1/session"},
+		{http.MethodDelete, "/api/v1/user"},
+		{http.MethodDelete, "/api/v1/session"},
+		{http.MethodDelete, "/api/v1/session/all"},
 		{http.MethodDelete, "/api/v1/auth/logout"},
 		{http.MethodGet, "/api/v1/user/me"},
 		{http.MethodGet, "/api/v1/user?userIds=" + otherUser},
@@ -149,8 +150,7 @@ func TestProtectedRoutesUseVerifiedIdentityAndAuthUserID(t *testing.T) {
 		wantStatus int
 		wantCalls  int
 	}{
-		{"Auth own user", http.MethodGet, "/api/v1/session/get-all/" + strings.ToUpper(httpTestUserID), nil, http.StatusAccepted, 1},
-		{"Auth other user", http.MethodGet, "/api/v1/session/get-all/" + otherUser, nil, http.StatusForbidden, 0},
+		{"Auth own user", http.MethodGet, "/api/v1/session", nil, http.StatusAccepted, 1},
 		{"Auth logout", http.MethodDelete, "/api/v1/auth/logout", nil, http.StatusAccepted, 1},
 		{"Auth current user", http.MethodGet, "/api/v1/user/me", nil, http.StatusAccepted, 1},
 		{"Auth user lookup", http.MethodGet, "/api/v1/user?userIds=" + otherUser, nil, http.StatusAccepted, 1},

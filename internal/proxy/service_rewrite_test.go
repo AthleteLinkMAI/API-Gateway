@@ -54,7 +54,7 @@ func TestServiceRewritesKeepTransportAndTrustBoundary(t *testing.T) {
 			name:              "protected Auth sends verified bearer and user",
 			rewrite:           proxy.RewriteAuth,
 			method:            http.MethodPut,
-			path:              "/api/v1/user/change-email/%31?cursor=a%2Bb&limit=20",
+			path:              "/api/v1/user/email/%31?cursor=a%2Bb&limit=20",
 			verified:          true,
 			wantAuthorization: "Bearer verified-token",
 			wantCookie:        "refreshToken=client-cookie",

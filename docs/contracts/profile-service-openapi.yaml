@@ -1,0 +1,534 @@
+openapi: 3.1.0
+info:
+  title: OpenAPI definition
+  version: v0
+servers:
+- url: http://localhost:8080/api/v1
+  description: Generated server url
+paths:
+  /user:
+    get:
+      tags:
+      - user-controller
+      operationId: getUsersByUserIds
+      parameters:
+      - name: userIds
+        in: query
+        required: true
+        schema:
+          type: array
+          items:
+            type: string
+            format: uuid
+      responses:
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserPublicControllerDto"
+    put:
+      tags:
+      - user-controller
+      operationId: updateUser
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserToUpdateControllerDto"
+        required: true
+      responses:
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "200":
+          description: OK
+  /friend/request:
+    post:
+      tags:
+      - friend-controller
+      operationId: sendFriendRequest
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: string
+              format: uuid
+        required: true
+      responses:
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "201":
+          description: Created
+    delete:
+      tags:
+      - friend-controller
+      operationId: revokeFriendRequest
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: string
+              format: uuid
+        required: true
+      responses:
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "204":
+          description: No Content
+  /friend/request/decline:
+    post:
+      tags:
+      - friend-controller
+      operationId: declineFriendRequest
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: string
+              format: uuid
+        required: true
+      responses:
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "200":
+          description: OK
+  /friend/request/accept:
+    post:
+      tags:
+      - friend-controller
+      operationId: acceptFriendRequest
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: string
+              format: uuid
+        required: true
+      responses:
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "200":
+          description: OK
+  /user/me:
+    get:
+      tags:
+      - user-controller
+      operationId: me
+      parameters:
+      - name: userId
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/UserControllerDto"
+  /friend/{userToGetFriends}:
+    get:
+      tags:
+      - friend-controller
+      operationId: getPaginatedFriendsByUserId
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: userToGetFriends
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          default:
+          - "nickname,ASC"
+          items:
+            type: string
+      responses:
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageUserPublicControllerDto"
+  /friend/request/outgoing/{userToGetFriendRequests}:
+    get:
+      tags:
+      - friend-controller
+      operationId: getPaginatedOutgoingFriendsRequestsByUserId
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: userToGetFriendRequests
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          default:
+          - "nickname,ASC"
+          items:
+            type: string
+      responses:
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageUserPublicControllerDto"
+  /friend/request/incoming/{userToGetFriendRequests}:
+    get:
+      tags:
+      - friend-controller
+      operationId: getPaginatedIncomingFriendsRequestsByUserId
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: userToGetFriendRequests
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          default:
+          - "nickname,ASC"
+          items:
+            type: string
+      responses:
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/PageUserPublicControllerDto"
+  /friend:
+    delete:
+      tags:
+      - friend-controller
+      operationId: deleteFriend
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: string
+              format: uuid
+        required: true
+      responses:
+        "404":
+          description: Not Found
+        "409":
+          description: Conflict
+        "204":
+          description: No Content
+components:
+  schemas:
+    UserToUpdateControllerDto:
+      type: object
+      properties:
+        nickname:
+          type: string
+          maxLength: 30
+          minLength: 0
+        name:
+          type: string
+          maxLength: 30
+          minLength: 0
+        surname:
+          type: string
+          maxLength: 30
+          minLength: 0
+        birthdate:
+          type: string
+          format: date
+        messagePolicy:
+          type: string
+          enum:
+          - NO_ONE
+          - ONLY_FRIENDS
+          - EVERYBODY
+      required:
+      - birthdate
+      - messagePolicy
+      - nickname
+    UserPublicControllerDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - MODERATOR
+          - USER
+        nickname:
+          type: string
+        name:
+          type: string
+        surname:
+          type: string
+        isVerified:
+          type: boolean
+        messagePolicy:
+          type: string
+          enum:
+          - NO_ONE
+          - ONLY_FRIENDS
+          - EVERYBODY
+        age:
+          type: integer
+          format: int32
+        registrationDate:
+          type: string
+          format: date
+    UserControllerDto:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - MODERATOR
+          - USER
+        nickname:
+          type: string
+        name:
+          type: string
+        surname:
+          type: string
+        email:
+          type: string
+        isVerified:
+          type: boolean
+        messagePolicy:
+          type: string
+          enum:
+          - NO_ONE
+          - ONLY_FRIENDS
+          - EVERYBODY
+        age:
+          type: integer
+          format: int32
+        registrationDate:
+          type: string
+          format: date
+    PageUserPublicControllerDto:
+      type: object
+      properties:
+        totalPages:
+          type: integer
+          format: int32
+        totalElements:
+          type: integer
+          format: int64
+        size:
+          type: integer
+          format: int32
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/UserPublicControllerDto"
+        number:
+          type: integer
+          format: int32
+        first:
+          type: boolean
+        last:
+          type: boolean
+        numberOfElements:
+          type: integer
+          format: int32
+        pageable:
+          $ref: "#/components/schemas/PageableObject"
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        empty:
+          type: boolean
+    PageableObject:
+      type: object
+      properties:
+        offset:
+          type: integer
+          format: int64
+        pageSize:
+          type: integer
+          format: int32
+        pageNumber:
+          type: integer
+          format: int32
+        paged:
+          type: boolean
+        sort:
+          $ref: "#/components/schemas/SortObject"
+        unpaged:
+          type: boolean
+    SortObject:
+      type: object
+      properties:
+        empty:
+          type: boolean
+        sorted:
+          type: boolean
+        unsorted:
+          type: boolean

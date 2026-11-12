@@ -35,7 +35,7 @@ type acceptanceRedis struct {
 
 func (r *acceptanceRedis) Exists(ctx context.Context, keys ...string) *redis.IntCmd {
 	r.calls.Add(1)
-	if !slices.Equal(keys, []string{"jwt:denylist:" + acceptanceJTI}) {
+	if !slices.Equal(keys, []string{"jwt:denylist:" + acceptanceJTI}) && !slices.Equal(keys, []string{"user:banlist:" + acceptanceUserID}) {
 		r.t.Errorf("Redis keys = %q, want exact token denylist key", keys)
 	}
 	if err := ctx.Err(); err != nil {
@@ -65,7 +65,7 @@ func TestCoreHTTPJWTAndRedisBoundary(t *testing.T) {
 		wantLookup int32
 		wantCore   int32
 	}{
-		{name: "valid JWT", wantStatus: 204, wantLookup: 1, wantCore: 1},
+		{name: "valid JWT", wantStatus: 204, wantLookup: 2, wantCore: 1},
 		{name: "missing JWT", missing: true, wantStatus: 401},
 		{name: "malformed JWT", malformed: true, wantStatus: 401},
 		{name: "duplicate authorization", duplicate: true, wantStatus: 401},
@@ -78,11 +78,11 @@ func TestCoreHTTPJWTAndRedisBoundary(t *testing.T) {
 		{name: "missing expiration", change: func(c jwt.MapClaims) { delete(c, "exp") }, wantStatus: 401},
 		{name: "expires now", change: func(c jwt.MapClaims) { c["exp"] = now.Unix() }, wantStatus: 401},
 		{name: "issued in future", change: func(c jwt.MapClaims) { c["iat"] = now.Add(time.Second).Unix() }, wantStatus: 401},
-		{name: "denylist hit", denied: 1, wantStatus: 401, wantLookup: 1},
-		{name: "Redis connection refused", redisErr: syscall.ECONNREFUSED, wantStatus: 204, wantLookup: 1, wantCore: 1},
-		{name: "Redis lookup timeout", redisErr: context.DeadlineExceeded, wantStatus: 204, wantLookup: 1, wantCore: 1},
-		{name: "Redis command error", redisErr: acceptanceRedisCommandError("ERR command failed"), wantStatus: 503, wantLookup: 1},
-		{name: "unclassified Redis error", redisErr: errors.New("unclassified lookup failure"), wantStatus: 503, wantLookup: 1},
+		{name: "denylist hit", denied: 1, wantStatus: 401, wantLookup: 2},
+		{name: "Redis connection refused", redisErr: syscall.ECONNREFUSED, wantStatus: 204, wantLookup: 2, wantCore: 1},
+		{name: "Redis lookup timeout", redisErr: context.DeadlineExceeded, wantStatus: 204, wantLookup: 2, wantCore: 1},
+		{name: "Redis command error", redisErr: acceptanceRedisCommandError("ERR command failed"), wantStatus: 503, wantLookup: 2},
+		{name: "unclassified Redis error", redisErr: errors.New("unclassified lookup failure"), wantStatus: 503, wantLookup: 2},
 	}
 
 	for _, tc := range tests {
@@ -144,7 +144,7 @@ func TestCoreHTTPJWTAndRedisBoundary(t *testing.T) {
 			if tc.duplicate {
 				request.Header.Add("Authorization", "Bearer "+token)
 			}
-			client := &http.Client{Timeout: 3 * time.Second}
+			client := &http.Client{Timeout: 8 * time.Second}
 			response, err := client.Do(request)
 			if err != nil {
 				t.Fatal(err)

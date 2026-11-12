@@ -21,6 +21,10 @@ var (
 )
 
 type denylistStub struct {
+	banCalls      int
+	userID        string
+	banned        bool
+	banErr        error
 	calls         int
 	jti           string
 	contextMarker bool
@@ -198,7 +202,7 @@ func assertInvalidTokenBeforeDenylist(
 	if !errors.Is(err, ErrInvalidToken) || identity.UserID != "" {
 		t.Errorf("identity = %+v, error = %v; want invalid token", identity, err)
 	}
-	if lookup.calls != 0 {
+	if lookup.calls != 0 || lookup.banCalls != 0 {
 		t.Errorf("denylist calls = %d, want 0", lookup.calls)
 	}
 }
@@ -294,4 +298,10 @@ func TestVerifierDoesNotFailOpenAfterRequestEnds(t *testing.T) {
 			}
 		})
 	}
+}
+
+func (s *denylistStub) IsBanned(ctx context.Context, userID string) (bool, error) {
+	s.banCalls++
+	s.userID = userID
+	return s.banned, s.banErr
 }

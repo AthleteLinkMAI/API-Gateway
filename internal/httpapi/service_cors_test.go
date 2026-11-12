@@ -24,9 +24,9 @@ func TestAuthAndGamePreflightRunsBeforeAuthentication(t *testing.T) {
 	}{
 		{"public Auth", "/api/v1/auth/login", allowedOrigin, http.MethodPost,
 			http.StatusNoContent, "", allowedOrigin, http.MethodPost},
-		{"localhost registration", "/api/v1/user/register", "http://localhost:8079", http.MethodPost,
+		{"localhost registration", "/api/v1/user", "http://localhost:8079", http.MethodPost,
 			http.StatusNoContent, "", "http://localhost:8079", http.MethodPost},
-		{"protected Auth", "/api/v1/session/get-all/" + userID, allowedOrigin, http.MethodGet,
+		{"protected Auth", "/api/v1/session", allowedOrigin, http.MethodGet,
 			http.StatusNoContent, "", allowedOrigin, http.MethodGet},
 		{"Game", "/api/v1/players/" + userID, allowedOrigin, http.MethodGet,
 			http.StatusNoContent, "", allowedOrigin, http.MethodGet},
@@ -40,8 +40,8 @@ func TestAuthAndGamePreflightRunsBeforeAuthentication(t *testing.T) {
 			http.StatusNotFound, "", "", ""},
 		{"ordinary OPTIONS", "/api/v1/auth/login", allowedOrigin, "",
 			http.StatusMethodNotAllowed, http.MethodPost, allowedOrigin, ""},
-		{"no origin", "/api/v1/user/register", "", http.MethodPost,
-			http.StatusMethodNotAllowed, http.MethodPost, "", ""},
+		{"no origin", "/api/v1/user", "", http.MethodPost,
+			http.StatusMethodNotAllowed, "POST, DELETE, GET, PUT", "", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			verifier := &accessRouteVerifier{identity: requestcontext.Identity{UserID: userID}}
@@ -114,11 +114,11 @@ func TestAuthAndGameCORSOnOrdinaryResponses(t *testing.T) {
 	}{
 		{"Auth login", http.MethodPost, "/api/v1/auth/login", allowedOrigin, false,
 			http.StatusAccepted, allowedOrigin, 1},
-		{"localhost registration", http.MethodPost, "/api/v1/user/register", "http://localhost:8079", false,
+		{"localhost registration", http.MethodPost, "/api/v1/user", "http://localhost:8079", false,
 			http.StatusAccepted, "http://localhost:8079", 1},
 		{"Auth refresh", http.MethodPost, "/api/v1/auth/refresh", allowedOrigin, false,
 			http.StatusAccepted, allowedOrigin, 1},
-		{"protected Auth without JWT", http.MethodGet, "/api/v1/session/get-all/" + userID, allowedOrigin, false,
+		{"protected Auth without JWT", http.MethodGet, "/api/v1/session", allowedOrigin, false,
 			http.StatusUnauthorized, allowedOrigin, 0},
 		{"localhost me without JWT", http.MethodGet, "/api/v1/user/me", "http://localhost:5173", false,
 			http.StatusUnauthorized, "http://localhost:5173", 0},
@@ -241,8 +241,8 @@ func TestLocalhostCORSWithAndWithoutConfiguredOrigins(t *testing.T) {
 					handler := httpapi.NewHandler(httpapi.HandlerOptions{
 						Readiness:       &httpapi.Readiness{},
 						CheckDependency: func(context.Context) error { return nil },
-						CoreProxy:       upstream, AuthHandler: upstream, GameHandler: upstream,
-						CoreTimeout: time.Second, AuthTimeout: time.Second, GameTimeout: time.Second,
+						CoreProxy:       upstream, AuthHandler: upstream, GameHandler: upstream, ProfileHandler: upstream, ChatHandler: upstream,
+						CoreTimeout: time.Second, AuthTimeout: time.Second, GameTimeout: time.Second, ProfileTimeout: time.Second, ChatTimeout: time.Second,
 						WriteTimeout: 2 * time.Second, Verifier: verifier,
 						NewRequestID: func() string { return httpTestRequestID },
 						CORSOrigins:  config.origins,

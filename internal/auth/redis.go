@@ -27,7 +27,15 @@ func (r *RedisDenylist) IsDenied(
 	ctx context.Context,
 	jti string,
 ) (bool, error) {
-	count, err := r.client.Exists(ctx, "jwt:denylist:"+jti).Result()
+	return r.exists(ctx, "jwt:denylist:"+jti)
+}
+
+func (r *RedisDenylist) IsBanned(ctx context.Context, userID string) (bool, error) {
+	return r.exists(ctx, "user:banlist:"+userID)
+}
+
+func (r *RedisDenylist) exists(ctx context.Context, key string) (bool, error) {
+	count, err := r.client.Exists(ctx, key).Result()
 	if err != nil {
 		if ctx.Err() != nil {
 			return false, err

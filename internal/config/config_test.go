@@ -13,12 +13,16 @@ import (
 type environment map[string]string
 
 var requiredURLs = environment{
-	"GATEWAY_CORE_URL":        "http://core.example",
-	"GATEWAY_AUTH_URL":        "http://auth.example",
-	"GATEWAY_GAME_URL":        "http://game.example",
-	"GATEWAY_CORE_HEALTH_URL": "http://core.example/health",
-	"GATEWAY_AUTH_HEALTH_URL": "http://auth.example/health",
-	"GATEWAY_GAME_HEALTH_URL": "http://game.example/health",
+	"GATEWAY_CORE_URL":           "http://core.example",
+	"GATEWAY_AUTH_URL":           "http://auth.example",
+	"GATEWAY_GAME_URL":           "http://game.example",
+	"GATEWAY_PROFILE_URL":        "http://profile.example",
+	"GATEWAY_CHAT_URL":           "http://chat.example",
+	"GATEWAY_CORE_HEALTH_URL":    "http://core.example/health",
+	"GATEWAY_AUTH_HEALTH_URL":    "http://auth.example/health",
+	"GATEWAY_GAME_HEALTH_URL":    "http://game.example/health",
+	"GATEWAY_PROFILE_HEALTH_URL": "http://profile.example/health",
+	"GATEWAY_CHAT_HEALTH_URL":    "http://chat.example/health",
 }
 
 func (env environment) lookup(key string) (string, bool) {
@@ -51,9 +55,13 @@ func TestLoadDefaults(t *testing.T) {
 		CoreURL:           requiredURLs["GATEWAY_CORE_URL"],
 		AuthURL:           requiredURLs["GATEWAY_AUTH_URL"],
 		GameURL:           requiredURLs["GATEWAY_GAME_URL"],
+		ChatURL:           requiredURLs["GATEWAY_CHAT_URL"],
+		ProfileURL:        requiredURLs["GATEWAY_PROFILE_URL"],
 		CoreTimeout:       10 * time.Second,
 		AuthTimeout:       10 * time.Second,
 		GameTimeout:       10 * time.Second,
+		ChatTimeout:       10 * time.Second,
+		ProfileTimeout:    10 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      15 * time.Second,
@@ -65,6 +73,8 @@ func TestLoadDefaults(t *testing.T) {
 		CoreHealthURL:     requiredURLs["GATEWAY_CORE_HEALTH_URL"],
 		AuthHealthURL:     requiredURLs["GATEWAY_AUTH_HEALTH_URL"],
 		GameHealthURL:     requiredURLs["GATEWAY_GAME_HEALTH_URL"],
+		ChatHealthURL:     requiredURLs["GATEWAY_CHAT_HEALTH_URL"],
+		ProfileHealthURL:  requiredURLs["GATEWAY_PROFILE_HEALTH_URL"],
 	}
 
 	if !reflect.DeepEqual(got, want) {
@@ -80,13 +90,19 @@ func TestLoadOverrides(t *testing.T) {
 		"GATEWAY_CORE_URL":            "https://core.example/",
 		"GATEWAY_AUTH_URL":            "https://auth.example/",
 		"GATEWAY_GAME_URL":            "https://game.example/",
+		"GATEWAY_CHAT_URL":            "https://chat.example/",
+		"GATEWAY_PROFILE_URL":         "https://profile.example/",
 		"GATEWAY_CORE_HEALTH_URL":     "https://core.example/actuator/health?full=true",
 		"GATEWAY_AUTH_HEALTH_URL":     "https://auth.example/health",
 		"GATEWAY_GAME_HEALTH_URL":     "https://game.example/health",
+		"GATEWAY_CHAT_HEALTH_URL":     "https://chat.example/health",
+		"GATEWAY_PROFILE_HEALTH_URL":  "https://profile.example/health",
 		"GATEWAY_CORS_ORIGINS":        "https://app.example, http://localhost:3000",
 		"GATEWAY_CORE_TIMEOUT":        "2s",
 		"GATEWAY_AUTH_TIMEOUT":        "1s",
 		"GATEWAY_GAME_TIMEOUT":        "1500ms",
+		"GATEWAY_CHAT_TIMEOUT":        "1500ms",
+		"GATEWAY_PROFILE_TIMEOUT":     "1500ms",
 		"GATEWAY_HEALTH_TIMEOUT":      "500ms",
 		"GATEWAY_READ_HEADER_TIMEOUT": "1s",
 		"GATEWAY_READ_TIMEOUT":        "2s",
@@ -109,13 +125,19 @@ func TestLoadOverrides(t *testing.T) {
 		CoreURL:           "https://core.example/",
 		AuthURL:           "https://auth.example/",
 		GameURL:           "https://game.example/",
+		ChatURL:           "https://chat.example/",
+		ProfileURL:        "https://profile.example/",
 		CoreHealthURL:     "https://core.example/actuator/health?full=true",
 		AuthHealthURL:     "https://auth.example/health",
 		GameHealthURL:     "https://game.example/health",
+		ChatHealthURL:     "https://chat.example/health",
+		ProfileHealthURL:  "https://profile.example/health",
 		CORSOrigins:       []string{"https://app.example", "http://localhost:3000"},
 		CoreTimeout:       2 * time.Second,
 		AuthTimeout:       time.Second,
 		GameTimeout:       1500 * time.Millisecond,
+		ChatTimeout:       1500 * time.Millisecond,
+		ProfileTimeout:    1500 * time.Millisecond,
 		HealthTimeout:     500 * time.Millisecond,
 		ReadHeaderTimeout: time.Second,
 		ReadTimeout:       2 * time.Second,
@@ -206,7 +228,7 @@ func TestLoadRejectsInvalidUpstreamAndHealthTimeouts(t *testing.T) {
 
 	for _, key := range []string{
 		"GATEWAY_CORE_TIMEOUT", "GATEWAY_AUTH_TIMEOUT",
-		"GATEWAY_GAME_TIMEOUT", "GATEWAY_HEALTH_TIMEOUT",
+		"GATEWAY_PROFILE_TIMEOUT", "GATEWAY_CHAT_TIMEOUT", "GATEWAY_GAME_TIMEOUT", "GATEWAY_HEALTH_TIMEOUT",
 	} {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
@@ -225,7 +247,7 @@ func TestLoadComparesUpstreamAndHealthTimeoutsWithWriteTimeout(t *testing.T) {
 
 	for _, key := range []string{
 		"GATEWAY_CORE_TIMEOUT", "GATEWAY_AUTH_TIMEOUT",
-		"GATEWAY_GAME_TIMEOUT", "GATEWAY_HEALTH_TIMEOUT",
+		"GATEWAY_PROFILE_TIMEOUT", "GATEWAY_CHAT_TIMEOUT", "GATEWAY_GAME_TIMEOUT", "GATEWAY_HEALTH_TIMEOUT",
 	} {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
@@ -235,10 +257,12 @@ func TestLoadComparesUpstreamAndHealthTimeoutsWithWriteTimeout(t *testing.T) {
 	assertLoadError(t, environment{"GATEWAY_WRITE_TIMEOUT": "3s"}, "GATEWAY_CORE_TIMEOUT")
 
 	cfg, err := config.Load(withRequiredURLs(environment{
-		"GATEWAY_CORE_TIMEOUT":  "2s",
-		"GATEWAY_AUTH_TIMEOUT":  "2s",
-		"GATEWAY_GAME_TIMEOUT":  "2s",
-		"GATEWAY_WRITE_TIMEOUT": "3s",
+		"GATEWAY_CORE_TIMEOUT":    "2s",
+		"GATEWAY_AUTH_TIMEOUT":    "2s",
+		"GATEWAY_GAME_TIMEOUT":    "2s",
+		"GATEWAY_CHAT_TIMEOUT":    "2s",
+		"GATEWAY_PROFILE_TIMEOUT": "2s",
+		"GATEWAY_WRITE_TIMEOUT":   "3s",
 	}).lookup)
 	if err != nil {
 		t.Fatalf("Load() with Core timeout below write timeout: %v", err)
@@ -273,7 +297,7 @@ func TestLoadRejectsInvalidUpstreamURLs(t *testing.T) {
 	t.Parallel()
 
 	for _, key := range []string{
-		"GATEWAY_CORE_URL", "GATEWAY_AUTH_URL", "GATEWAY_GAME_URL",
+		"GATEWAY_CORE_URL", "GATEWAY_AUTH_URL", "GATEWAY_PROFILE_URL", "GATEWAY_CHAT_URL", "GATEWAY_GAME_URL",
 	} {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()
@@ -297,7 +321,7 @@ func TestLoadRejectsInvalidHealthURLs(t *testing.T) {
 	t.Parallel()
 
 	for _, key := range []string{
-		"GATEWAY_CORE_HEALTH_URL", "GATEWAY_AUTH_HEALTH_URL", "GATEWAY_GAME_HEALTH_URL",
+		"GATEWAY_CORE_HEALTH_URL", "GATEWAY_AUTH_HEALTH_URL", "GATEWAY_PROFILE_HEALTH_URL", "GATEWAY_CHAT_HEALTH_URL", "GATEWAY_GAME_HEALTH_URL",
 	} {
 		t.Run(key, func(t *testing.T) {
 			t.Parallel()

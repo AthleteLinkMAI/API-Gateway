@@ -66,6 +66,8 @@ func loggingTestOptions(t *testing.T, target string, logs io.Writer, denylist lo
 		Readiness: readiness, CheckDependency: func(context.Context) error { return nil },
 		CoreProxy: makeProxy(proxy.RewriteCore), AuthHandler: makeProxy(proxy.RewriteAuth),
 		GameHandler: makeProxy(proxy.RewriteGame), Verifier: verifier,
+		ProfileHandler: makeProxy(proxy.RewriteProfile), ChatHandler: makeProxy(proxy.RewriteChat),
+		ProfileTimeout: time.Second, ChatTimeout: time.Second,
 		CoreTimeout: time.Second, AuthTimeout: time.Second, GameTimeout: time.Second,
 		WriteTimeout: 2 * time.Second, CORSOrigins: []string{"https://app.example"},
 		NewRequestID: func() string { return "generated-request-id" },
@@ -100,7 +102,7 @@ func TestRequestLoggingAuthenticationAndErrors(t *testing.T) {
 		{name: "revoked", method: "GET", path: "/api/v1/players", bearer: "valid", lookup: logDenylist{denied: true}, level: "WARN", authResult: "rejected", denylistResult: "denied", errorKind: "revoked_token", wantStatus: 401},
 		{name: "fail open", method: "GET", path: "/api/v1/players", bearer: "valid", lookup: logDenylist{err: auth.ErrRedisUnavailable}, level: "WARN", authResult: "allowed_without_denylist", denylistResult: "unavailable", wantStatus: 200, wantCalled: true},
 		{name: "command error", method: "GET", path: "/api/v1/players", bearer: "valid", lookup: logDenylist{err: errors.New("secret-redis-error")}, level: "ERROR", authResult: "rejected", denylistResult: "error", errorKind: "denylist_check_failed", wantStatus: 503},
-		{name: "own user mismatch", method: "GET", path: "/api/v1/session/get-all/123e4567-e89b-42d3-a456-426614174099", bearer: "valid", level: "WARN", authResult: "allowed", denylistResult: "clear", errorKind: "own_user_mismatch", wantStatus: 403},
+		{name: "missing role", method: "GET", path: "/api/v1/report/all", bearer: "valid", level: "WARN", authResult: "allowed", denylistResult: "clear", errorKind: "role_missing_or_invalid", wantStatus: 403},
 		{name: "unknown route", method: "GET", path: "/secret-path", level: "WARN", authResult: "not_required", denylistResult: "not_checked", errorKind: "route_not_found", wantStatus: 404},
 		{name: "wrong method", method: "HEAD", path: "/api/v1/players", level: "WARN", authResult: "not_required", denylistResult: "not_checked", errorKind: "method_not_allowed", wantStatus: 405},
 		{name: "upstream failure", method: "GET", path: "/api/v1/players", bearer: "valid", upstreamStatus: 500, level: "ERROR", authResult: "allowed", denylistResult: "clear", wantStatus: 500, wantCalled: true},
@@ -180,13 +182,13 @@ func TestCurrentUserRoutesUseJWTSubject(t *testing.T) {
 		{http.MethodGet, "/api/v1/players", "/api/v1/players/" + logTestUser, "game"},
 		{http.MethodGet, "/api/v1/players/", "/api/v1/players/" + logTestUser, "game"},
 		{http.MethodGet, "/api/v1/players/" + otherUser, "/api/v1/players/" + otherUser, "game"},
-		{http.MethodGet, "/api/v1/user/me", "/api/v1/user/me/" + logTestUser, "auth"},
-		{http.MethodPut, "/api/v1/user/update-user", "/api/v1/user/update-user/" + logTestUser, "auth"},
-		{http.MethodPut, "/api/v1/user/change-password", "/api/v1/user/change-password/" + logTestUser, "auth"},
-		{http.MethodPut, "/api/v1/user/change-email", "/api/v1/user/change-email/" + logTestUser, "auth"},
-		{http.MethodDelete, "/api/v1/user/delete", "/api/v1/user/delete/" + logTestUser, "auth"},
-		{http.MethodPost, "/api/v1/verification/verify-email", "/api/v1/verification/verify-email/" + logTestUser, "auth"},
-		{http.MethodPost, "/api/v1/verification/send-email-verification-code", "/api/v1/verification/send-email-verification-code/" + logTestUser, "auth"},
+		{http.MethodGet, "/api/v1/user/me", "/api/v1/user/me", "profile"},
+		{http.MethodPut, "/api/v1/user", "/api/v1/user", "profile"},
+		{http.MethodPut, "/api/v1/user/password", "/api/v1/user/password", "auth"},
+		{http.MethodPut, "/api/v1/user/email", "/api/v1/user/email", "auth"},
+		{http.MethodDelete, "/api/v1/user", "/api/v1/user", "auth"},
+		{http.MethodPost, "/api/v1/verification/email", "/api/v1/verification/email", "auth"},
+		{http.MethodPost, "/api/v1/verification/send-email-verification-code", "/api/v1/verification/send-email-verification-code", "auth"},
 	} {
 		t.Run(tc.path, func(t *testing.T) {
 			seen := make(chan *http.Request, 1)
@@ -213,12 +215,16 @@ func TestCurrentUserRoutesUseJWTSubject(t *testing.T) {
 			}
 			if tc.path == "/api/v1/user/me" {
 				entry := decodeRequestLog(t, &logs)
-				if entry["route"] != tc.path || entry["user_id"] != logTestUser || entry["upstream"] != "auth" {
+				if entry["route"] != tc.path || entry["user_id"] != logTestUser || entry["upstream"] != "profile" {
 					t.Errorf("current-user request log = %v", entry)
 				}
 			}
 			got := <-seen
-			if got.URL.Path != tc.wantPath || got.URL.RawQuery != request.URL.RawQuery || got.Header.Get("X-User-Id") != logTestUser {
+			identityHeader := "X-User-Id"
+			if tc.path == "/api/v1/user/me" {
+				identityHeader = "userId"
+			}
+			if got.URL.Path != tc.wantPath || got.URL.RawQuery != request.URL.RawQuery || got.Header.Get(identityHeader) != logTestUser {
 				t.Errorf("upstream path/query/identity = %s %s %s", got.URL.Path, got.URL.RawQuery, got.Header.Get("X-User-Id"))
 			}
 			if got.Header.Get("X-Request-Id") != "generated-request-id" {
@@ -439,3 +445,5 @@ func TestProxyStreamingWithRequestLogging(t *testing.T) {
 		t.Errorf("entry = %v", entry)
 	}
 }
+
+func (d logDenylist) IsBanned(context.Context, string) (bool, error) { return false, nil }

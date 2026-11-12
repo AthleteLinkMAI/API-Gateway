@@ -8,6 +8,7 @@ type verifiedAccessTokenKey struct{}
 
 type Identity struct {
 	UserID string
+	Role   string
 }
 
 func WithIdentity(ctx context.Context, identity Identity) context.Context {
@@ -35,4 +36,20 @@ func WithRequestID(ctx context.Context, id string) context.Context {
 func RequestIDFrom(ctx context.Context) (string, bool) {
 	id, ok := ctx.Value(requestIDKey{}).(string)
 	return id, ok && id != ""
+}
+
+type identityHeadersKey struct{}
+
+type IdentityHeaders struct {
+	UserIDHeader string
+	IncludeRole  bool
+}
+
+func WithIdentityHeaders(ctx context.Context, headers IdentityHeaders) context.Context {
+	return context.WithValue(ctx, identityHeadersKey{}, headers)
+}
+
+func IdentityHeadersFrom(ctx context.Context) (IdentityHeaders, bool) {
+	headers, ok := ctx.Value(identityHeadersKey{}).(IdentityHeaders)
+	return headers, ok
 }

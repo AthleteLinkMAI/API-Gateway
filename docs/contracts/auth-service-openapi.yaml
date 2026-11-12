@@ -6,38 +6,51 @@ info:
     name: MIT License
   version: 1.0.0
 servers:
-- url: http://localhost:8081/api/v1
+- url: http://localhost:8080/api/v1
   description: Generated server url
 paths:
-  /user/update-user/{userId}:
+  /user/role:
     put:
       tags:
-      - user-controller
-      operationId: updateUser
+      - user-credentials-controller
+      operationId: updateUserRole
       parameters:
-      - name: userId
-        in: path
+      - name: X-User-Id
+        in: header
         required: true
         schema:
           type: string
           format: uuid
+      - name: X-User-Role
+        in: header
+        required: true
+        schema:
+          type: string
+          enum:
+          - ADMIN
+          - MODERATOR
+          - USER
       requestBody:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/UserUpdateControllerDto"
+              $ref: "#/components/schemas/UpdateRoleRequestControllerDto"
         required: true
       responses:
         "200":
           description: OK
-  /user/change-password/{userId}:
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/UserCredentialsControllerDto"
+  /user/password:
     put:
       tags:
-      - user-controller
+      - user-credentials-controller
       operationId: changePassword
       parameters:
-      - name: userId
-        in: path
+      - name: X-User-Id
+        in: header
         required: true
         schema:
           type: string
@@ -51,14 +64,14 @@ paths:
       responses:
         "200":
           description: OK
-  /user/change-email/{userId}:
+  /user/email:
     put:
       tags:
-      - user-controller
+      - user-credentials-controller
       operationId: changeEmail
       parameters:
-      - name: userId
-        in: path
+      - name: X-User-Id
+        in: header
         required: true
         schema:
           type: string
@@ -73,45 +86,6 @@ paths:
       responses:
         "200":
           description: OK
-  /verification/verify-password-reset:
-    post:
-      tags:
-      - verification-controller
-      operationId: resetPassword
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/PasswordResetRequestControllerDto"
-        required: true
-      responses:
-        "200":
-          description: OK
-  /verification/verify-email/{userId}:
-    post:
-      tags:
-      - verification-controller
-      operationId: verifyEmail
-      parameters:
-      - name: userId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      requestBody:
-        content:
-          application/json:
-            schema:
-              type: string
-        required: true
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                type: boolean
   /verification/send-password-reset-code:
     post:
       tags:
@@ -127,31 +101,144 @@ paths:
       responses:
         "200":
           description: OK
-  /verification/send-email-verification-code/{userId}:
+  /verification/send-email-verification-code:
     post:
       tags:
       - verification-controller
       operationId: sendEmailVerificationCode
       parameters:
-      - name: userId
-        in: path
+      - name: X-User-Id
+        in: header
         required: true
         schema:
           type: string
           format: uuid
       responses:
-        "200":
-          description: OK
-  /user/register:
+        "202":
+          description: Accepted
+  /verification/password-reset:
     post:
       tags:
-      - user-controller
+      - verification-controller
+      operationId: resetPassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PasswordResetRequestControllerDto"
+        required: true
+      responses:
+        "200":
+          description: OK
+  /verification/email:
+    post:
+      tags:
+      - verification-controller
+      operationId: verifyEmail
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: string
+        required: true
+      responses:
+        "200":
+          description: OK
+  /user:
+    post:
+      tags:
+      - user-credentials-controller
       operationId: register
       requestBody:
         content:
           application/json:
             schema:
               $ref: "#/components/schemas/RegisterRequestControllerDto"
+        required: true
+      responses:
+        "201":
+          description: Created
+    delete:
+      tags:
+      - user-credentials-controller
+      operationId: deleteUser
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: No Content
+  /ban:
+    post:
+      tags:
+      - ban-controller
+      operationId: banUser
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-User-Role
+        in: header
+        required: true
+        schema:
+          type: string
+          enum:
+          - ADMIN
+          - MODERATOR
+          - USER
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BanToCreateControllerDto"
+        required: true
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BanControllerDto"
+    delete:
+      tags:
+      - ban-controller
+      operationId: unbanUser
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: X-User-Role
+        in: header
+        required: true
+        schema:
+          type: string
+          enum:
+          - ADMIN
+          - MODERATOR
+          - USER
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: string
+              format: uuid
         required: true
       responses:
         "200":
@@ -188,56 +275,14 @@ paths:
       responses:
         "200":
           description: OK
-  /user:
-    get:
-      tags:
-      - user-controller
-      operationId: getUsersByUserIds
-      parameters:
-      - name: userIds
-        in: query
-        required: true
-        schema:
-          type: array
-          items:
-            type: string
-            format: uuid
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                type: array
-                items:
-                  $ref: "#/components/schemas/UserPublicControllerDto"
-  /user/me/{userId}:
-    get:
-      tags:
-      - user-controller
-      operationId: me
-      parameters:
-      - name: userId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "200":
-          description: OK
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/UserControllerDto"
-  /session/get-all/{userId}:
+  /session:
     get:
       tags:
       - session-controller
       operationId: getAllSessions
       parameters:
-      - name: userId
-        in: path
+      - name: X-User-Id
+        in: header
         required: true
         schema:
           type: string
@@ -251,37 +296,13 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/SessionControllerDto"
-  /health:
-    get:
-      tags:
-      - health-controller
-      operationId: getHealth
-      responses:
-        "200":
-          description: OK
-  /user/delete/{userId}:
-    delete:
-      tags:
-      - user-controller
-      operationId: deleteUser
-      parameters:
-      - name: userId
-        in: path
-        required: true
-        schema:
-          type: string
-          format: uuid
-      responses:
-        "200":
-          description: OK
-  /session/terminate/{userId}:
     delete:
       tags:
       - session-controller
       operationId: terminateSession
       parameters:
-      - name: userId
-        in: path
+      - name: X-User-Id
+        in: header
         required: true
         schema:
           type: string
@@ -294,16 +315,43 @@ paths:
               format: uuid
         required: true
       responses:
+        "204":
+          description: No Content
+  /health:
+    get:
+      tags:
+      - health-controller
+      operationId: getHealth
+      responses:
         "200":
           description: OK
-  /session/terminate-all/{userId}:
+  /ban/{email}:
+    get:
+      tags:
+      - ban-controller
+      operationId: getBanByUserEmail
+      parameters:
+      - name: email
+        in: path
+        required: true
+        schema:
+          type: string
+          format: email
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/BanControllerDto"
+  /session/all:
     delete:
       tags:
       - session-controller
       operationId: terminateAllSessions
       parameters:
-      - name: userId
-        in: path
+      - name: X-User-Id
+        in: header
         required: true
         schema:
           type: string
@@ -327,27 +375,36 @@ paths:
           description: OK
 components:
   schemas:
-    UserUpdateControllerDto:
+    UpdateRoleRequestControllerDto:
       type: object
       properties:
-        nickname:
+        userId:
           type: string
-          maxLength: 30
-          minLength: 0
-        name:
+          format: uuid
+        newRole:
           type: string
-          maxLength: 30
-          minLength: 0
-        surname:
+          enum:
+          - ADMIN
+          - MODERATOR
+          - USER
+    UserCredentialsControllerDto:
+      type: object
+      properties:
+        id:
           type: string
-          maxLength: 30
-          minLength: 0
-        birthdate:
+          format: uuid
+        role:
           type: string
-          format: date
-      required:
-      - birthdate
-      - nickname
+          enum:
+          - ADMIN
+          - MODERATOR
+          - USER
+        email:
+          type: string
+        isVerified:
+          type: boolean
+        isBanned:
+          type: boolean
     ChangePasswordRequestControllerDto:
       type: object
       properties:
@@ -406,6 +463,31 @@ components:
       - email
       - nickname
       - password
+    BanToCreateControllerDto:
+      type: object
+      properties:
+        userToBan:
+          type: string
+          format: uuid
+        reason:
+          type: string
+        expiration:
+          type: string
+          format: date-time
+    BanControllerDto:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        expiration:
+          type: string
+          format: date-time
+        reason:
+          type: string
+        bannedBy:
+          type: string
+          format: uuid
     CredentialsControllerDto:
       type: object
       properties:
@@ -419,46 +501,6 @@ components:
       required:
       - email
       - password
-    UserPublicControllerDto:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        nickname:
-          type: string
-        name:
-          type: string
-        surname:
-          type: string
-        age:
-          type: integer
-          format: int32
-        registrationDate:
-          type: string
-          format: date
-    UserControllerDto:
-      type: object
-      properties:
-        id:
-          type: string
-          format: uuid
-        nickname:
-          type: string
-        name:
-          type: string
-        surname:
-          type: string
-        email:
-          type: string
-        isVerified:
-          type: boolean
-        age:
-          type: integer
-          format: int32
-        registrationDate:
-          type: string
-          format: date
     SessionControllerDto:
       type: object
       properties:

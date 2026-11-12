@@ -3,12 +3,78 @@ info:
   title: OpenAPI definition
   version: v0
 servers:
-- url: http://localhost:8084/api/v1
+- url: http://localhost:8082/api/v1
   description: Generated server url
 tags:
 - name: Player profiles
   description: API for viewing player profiles and match history
 paths:
+  /voting:
+    post:
+      tags:
+      - vote-controller
+      operationId: vote
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VoteToCreateDto"
+        required: true
+      responses:
+        "201":
+          description: Created
+  /results:
+    post:
+      tags:
+      - Results
+      operationId: insertResult
+      parameters:
+      - name: dto
+        in: query
+        required: true
+        schema:
+          $ref: "#/components/schemas/SubmitRoundResultDto"
+      responses:
+        "201":
+          description: Created
+          content:
+            '*/*':
+              schema:
+                $ref: "#/components/schemas/RoundResultDetailsDto"
+  /voting/{activityRequestId}:
+    get:
+      tags:
+      - vote-controller
+      operationId: getAllVotesForActivityRequest
+      parameters:
+      - name: X-User-Id
+        in: header
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: activityRequestId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/VoteDto"
   /results/by-request/{activityRequestId}:
     get:
       tags:
@@ -306,6 +372,66 @@ paths:
                   $ref: "#/components/schemas/LeaderboardEntryDto"
 components:
   schemas:
+    VoteToCreateDto:
+      type: object
+      properties:
+        activityRequestId:
+          type: string
+          format: uuid
+        roundNumber:
+          type: integer
+          format: int32
+        is_agreed:
+          type: boolean
+    PlayerResultEntry:
+      type: object
+      properties:
+        userId:
+          type: string
+          format: uuid
+        outcome:
+          type: string
+          enum:
+          - WIN
+          - LOSS
+          - DRAW
+      required:
+      - outcome
+      - userId
+    SubmitRoundResultDto:
+      type: object
+      properties:
+        type:
+          type: string
+        eventId:
+          type: string
+          format: uuid
+        requestId:
+          type: string
+          format: uuid
+        roundNumber:
+          type: integer
+          format: int32
+          minimum: 1
+        sportId:
+          type: integer
+          format: int64
+          minimum: 1
+        recordedBy:
+          type: string
+          format: uuid
+        players:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlayerResultEntry"
+          minItems: 1
+      required:
+      - eventId
+      - players
+      - recordedBy
+      - requestId
+      - sportId
+      - type
     PlayerResultDto:
       type: object
       properties:
@@ -350,6 +476,7 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PlayerResultDto"
+    VoteDto: {}
     RankTierDto:
       type: object
       description: Configured score threshold for a rank tier

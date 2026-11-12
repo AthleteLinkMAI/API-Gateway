@@ -74,6 +74,23 @@ func runWithContext(ctx context.Context) error {
 		return fmt.Errorf("create Game proxy: %w", err)
 	}
 
+	profileURL, err := url.Parse(cfg.ProfileURL)
+	if err != nil {
+		return fmt.Errorf("parse Profile URL: %w", err)
+	}
+	profileProxy, err := proxy.NewReverseProxy(profileURL, proxy.RewriteProfile, proxy.HandleUpstreamError)
+	if err != nil {
+		return fmt.Errorf("create Profile proxy: %w", err)
+	}
+	chatURL, err := url.Parse(cfg.ChatURL)
+	if err != nil {
+		return fmt.Errorf("parse Chat URL: %w", err)
+	}
+	chatProxy, err := proxy.NewReverseProxy(chatURL, proxy.RewriteChat, proxy.HandleUpstreamError)
+	if err != nil {
+		return fmt.Errorf("create Chat proxy: %w", err)
+	}
+
 	logger := observability.NewLogger(os.Stdout, cfg.LogLevel)
 	redisClient := redis.NewClient(
 		&redis.Options{
@@ -90,6 +107,7 @@ func runWithContext(ctx context.Context) error {
 		"http_addr", cfg.HTTPAddr,
 		"core_origin", coreURL.String(), "auth_origin", authURL.String(),
 		"game_origin", gameURL.String(),
+		"profile_origin", profileURL.String(), "chat_origin", chatURL.String(),
 		"redis_addr", redisClient.Options().Addr, "redis_db", redisClient.Options().DB,
 		"log_level", cfg.LogLevel.String())
 
@@ -107,7 +125,7 @@ func runWithContext(ctx context.Context) error {
 
 	return runHTTPServer(
 		ctx, cfg,
-		coreProxy, authProxy, gameProxy,
+		coreProxy, authProxy, gameProxy, profileProxy, chatProxy,
 		verifier, checkDependency,
 		func() string {
 			return uuid.New().String()
@@ -120,6 +138,8 @@ func runHTTPServer(
 	coreProxy http.Handler,
 	authProxy http.Handler,
 	gameProxy http.Handler,
+	profileProxy http.Handler,
+	chatProxy http.Handler,
 	verifier httpapi.AccessVerifier,
 	checkDependency func(context.Context) error,
 	newRequestID func() string,
@@ -132,9 +152,13 @@ func runHTTPServer(
 		CoreProxy:       coreProxy,
 		AuthHandler:     authProxy,
 		GameHandler:     gameProxy,
+		ProfileHandler:  profileProxy,
+		ChatHandler:     chatProxy,
 		CoreTimeout:     cfg.CoreTimeout,
 		AuthTimeout:     cfg.AuthTimeout,
 		GameTimeout:     cfg.GameTimeout,
+		ProfileTimeout:  cfg.ProfileTimeout,
+		ChatTimeout:     cfg.ChatTimeout,
 		WriteTimeout:    cfg.WriteTimeout,
 		Verifier:        verifier,
 		NewRequestID:    newRequestID,

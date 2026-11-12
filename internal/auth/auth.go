@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"regexp"
 	"time"
@@ -12,8 +13,9 @@ import (
 )
 
 var (
+	ErrUserBanned       = errors.New("user banned")
 	ErrInvalidToken     = errors.New("invalid access token")
-	ErrCheckUnavailable = errors.New("denylist check unavailable")
+	ErrCheckUnavailable = errors.New("access blocklist check unavailable")
 	ErrRedisUnavailable = errors.New("redis unavailable or timed out")
 )
 
@@ -23,10 +25,12 @@ var uuidPattern = regexp.MustCompile(
 
 type Denylist interface {
 	IsDenied(ctx context.Context, jti string) (bool, error)
+	IsBanned(ctx context.Context, userID string) (bool, error)
 }
 
 type claims struct {
-	Type string `json:"type"`
+	Type string          `json:"type"`
+	Role json.RawMessage `json:"role"`
 	jwt.RegisteredClaims
 }
 
@@ -102,40 +106,60 @@ func (v *Verifier) VerifyAccessToken(
 		return identity, ErrInvalidToken
 	}
 
-	denied, err := v.denylist.IsDenied(ctx, c.ID)
+	denied, denyErr := v.denylist.IsDenied(ctx, c.ID)
 	if ctx.Err() != nil {
-		requestcontext.UpdateDiagnostics(ctx, func(d *requestcontext.DiagnosticFields) {
-			d.ErrorKind = "request_ended"
-		})
 		return identity, ctx.Err()
 	}
-	if err != nil {
-		if errors.Is(err, ErrRedisUnavailable) {
-			requestcontext.UpdateDiagnostics(ctx, func(d *requestcontext.DiagnosticFields) {
-				d.AuthResult = "allowed_without_denylist"
-				d.DenylistResult = "unavailable"
-				d.ErrorKind = ""
-			})
-			return requestcontext.Identity{UserID: c.Subject}, nil
-		}
+	banned, banErr := v.denylist.IsBanned(ctx, c.Subject)
+	if ctx.Err() != nil {
+		requestcontext.UpdateDiagnostics(ctx, func(d *requestcontext.DiagnosticFields) { d.ErrorKind = "request_ended" })
+		return identity, ctx.Err()
+	}
+	requestcontext.UpdateDiagnostics(ctx, func(d *requestcontext.DiagnosticFields) {
+		d.DenylistResult = checkResult(denied, denyErr)
+		d.BanlistResult = checkResult(banned, banErr)
+	})
+	if denied && denyErr == nil {
+		requestcontext.UpdateDiagnostics(ctx, func(d *requestcontext.DiagnosticFields) { d.ErrorKind = "revoked_token" })
+		return identity, ErrInvalidToken
+	}
+	if banned && banErr == nil {
+		requestcontext.UpdateDiagnostics(ctx, func(d *requestcontext.DiagnosticFields) { d.ErrorKind = "user_banned" })
+		return identity, ErrUserBanned
+	}
+	if denyErr != nil && !errors.Is(denyErr, ErrRedisUnavailable) || banErr != nil && !errors.Is(banErr, ErrRedisUnavailable) {
 		requestcontext.UpdateDiagnostics(ctx, func(d *requestcontext.DiagnosticFields) {
-			d.DenylistResult = "error"
 			d.ErrorKind = "denylist_check_failed"
+			if banErr != nil && !errors.Is(banErr, ErrRedisUnavailable) {
+				d.ErrorKind = "banlist_check_failed"
+			}
 		})
 		return identity, ErrCheckUnavailable
 	}
-	if denied {
-		requestcontext.UpdateDiagnostics(ctx, func(d *requestcontext.DiagnosticFields) {
-			d.DenylistResult = "denied"
-			d.ErrorKind = "revoked_token"
-		})
-		return identity, ErrInvalidToken
-	}
-
 	requestcontext.UpdateDiagnostics(ctx, func(d *requestcontext.DiagnosticFields) {
 		d.AuthResult = "allowed"
-		d.DenylistResult = "clear"
+		if denyErr != nil || banErr != nil {
+			d.AuthResult = "allowed_without_denylist"
+		}
 		d.ErrorKind = ""
 	})
-	return requestcontext.Identity{UserID: c.Subject}, nil
+	var role string
+	_ = json.Unmarshal(c.Role, &role)
+	if role != "ADMIN" && role != "MODERATOR" && role != "USER" {
+		role = ""
+	}
+	return requestcontext.Identity{UserID: c.Subject, Role: role}, nil
+}
+
+func checkResult(found bool, err error) string {
+	if errors.Is(err, ErrRedisUnavailable) {
+		return "unavailable"
+	}
+	if err != nil {
+		return "error"
+	}
+	if found {
+		return "denied"
+	}
+	return "clear"
 }

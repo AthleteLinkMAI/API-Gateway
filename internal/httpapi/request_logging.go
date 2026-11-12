@@ -18,7 +18,7 @@ func withRequestLogging(next http.Handler, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, diagnostics := requestcontext.WithDiagnostics(r.Context())
 		r = r.WithContext(ctx)
-		route, upstream, background := logRoute(r.URL.EscapedPath())
+		route, upstream, background := logOperationRoute(r.Method, r.URL.EscapedPath())
 		response := &loggingResponseWriter{ResponseWriter: w}
 		started := time.Now()
 		completed := false
@@ -69,6 +69,7 @@ func requestLogAttrs(r *http.Request, route, upstream string, fields requestcont
 		slog.Int64("response_bytes", responseBytes),
 		slog.String("auth_result", fields.AuthResult),
 		slog.String("denylist_result", fields.DenylistResult),
+		slog.String("banlist_result", fields.BanlistResult),
 	)
 	if fields.UserID != "" {
 		attrs = append(attrs, slog.String("user_id", fields.UserID))
@@ -90,12 +91,12 @@ func requestLogLevel(status int, fields requestcontext.DiagnosticFields, backgro
 	if fields.ErrorKind == "client_canceled" {
 		return slog.LevelInfo
 	}
-	if status >= http.StatusInternalServerError || fields.DenylistResult == "error" ||
+	if status >= http.StatusInternalServerError || fields.DenylistResult == "error" || fields.BanlistResult == "error" ||
 		fields.ErrorKind == "handler_aborted" || fields.ErrorKind == "response_write_failed" ||
 		fields.ErrorKind == "upstream_body_failed" {
 		return slog.LevelError
 	}
-	if status >= http.StatusBadRequest || fields.ErrorKind != "" || fields.DenylistResult == "unavailable" {
+	if status >= http.StatusBadRequest || fields.ErrorKind != "" || fields.DenylistResult == "unavailable" || fields.BanlistResult == "unavailable" {
 		return slog.LevelWarn
 	}
 	if background {
@@ -105,13 +106,21 @@ func requestLogLevel(status int, fields requestcontext.DiagnosticFields, backgro
 }
 
 func logRoute(path string) (route, upstream string, background bool) {
-	if match, ok := findAPIRoute("", path); ok {
+	return logOperationRoute("", path)
+}
+
+func logOperationRoute(method, path string) (route, upstream string, background bool) {
+	if match, ok := findAPIRoute(method, path); ok {
 		service := "game"
 		switch match.spec.upstream {
 		case authUpstream:
 			service = "auth"
 		case coreUpstream:
 			service = "core"
+		case profileUpstream:
+			service = "profile"
+		case chatUpstream:
+			service = "chat"
 		}
 		return match.spec.pattern, service, false
 	}

@@ -16,10 +16,14 @@ type Config struct {
 	CoreURL           string
 	AuthURL           string
 	GameURL           string
+	ProfileURL        string
+	ChatURL           string
 	CORSOrigins       []string
 	CoreTimeout       time.Duration
 	AuthTimeout       time.Duration
 	GameTimeout       time.Duration
+	ProfileTimeout    time.Duration
+	ChatTimeout       time.Duration
 	ReadHeaderTimeout time.Duration
 	ReadTimeout       time.Duration
 	WriteTimeout      time.Duration
@@ -33,6 +37,8 @@ type Config struct {
 	AuthHealthURL     string
 	CoreHealthURL     string
 	GameHealthURL     string
+	ProfileHealthURL  string
+	ChatHealthURL     string
 }
 
 var defaultConfig = Config{
@@ -40,6 +46,8 @@ var defaultConfig = Config{
 	CoreTimeout:       10 * time.Second,
 	AuthTimeout:       10 * time.Second,
 	GameTimeout:       10 * time.Second,
+	ProfileTimeout:    10 * time.Second,
+	ChatTimeout:       10 * time.Second,
 	ReadHeaderTimeout: 5 * time.Second,
 	ReadTimeout:       15 * time.Second,
 	WriteTimeout:      15 * time.Second,
@@ -105,9 +113,13 @@ func loadServiceURLs(lookup LookupFunc, cfg *Config) error {
 		{"GATEWAY_CORE_URL", &cfg.CoreURL, false},
 		{"GATEWAY_AUTH_URL", &cfg.AuthURL, false},
 		{"GATEWAY_GAME_URL", &cfg.GameURL, false},
+		{"GATEWAY_PROFILE_URL", &cfg.ProfileURL, false},
+		{"GATEWAY_CHAT_URL", &cfg.ChatURL, false},
 		{"GATEWAY_CORE_HEALTH_URL", &cfg.CoreHealthURL, true},
 		{"GATEWAY_AUTH_HEALTH_URL", &cfg.AuthHealthURL, true},
 		{"GATEWAY_GAME_HEALTH_URL", &cfg.GameHealthURL, true},
+		{"GATEWAY_PROFILE_HEALTH_URL", &cfg.ProfileHealthURL, true},
+		{"GATEWAY_CHAT_HEALTH_URL", &cfg.ChatHealthURL, true},
 	} {
 		value, ok := lookup(entry.key)
 		if !ok {
@@ -148,6 +160,14 @@ func loadDurations(lookup LookupFunc, cfg *Config) error {
 	if err != nil {
 		return err
 	}
+	cfg.ProfileTimeout, err = positiveDuration(lookup, "GATEWAY_PROFILE_TIMEOUT", cfg.ProfileTimeout)
+	if err != nil {
+		return err
+	}
+	cfg.ChatTimeout, err = positiveDuration(lookup, "GATEWAY_CHAT_TIMEOUT", cfg.ChatTimeout)
+	if err != nil {
+		return err
+	}
 	cfg.HealthTimeout, err = positiveDuration(
 		lookup, "GATEWAY_HEALTH_TIMEOUT", cfg.HealthTimeout,
 	)
@@ -183,6 +203,8 @@ func loadDurations(lookup LookupFunc, cfg *Config) error {
 		{"GATEWAY_CORE_TIMEOUT", cfg.CoreTimeout},
 		{"GATEWAY_AUTH_TIMEOUT", cfg.AuthTimeout},
 		{"GATEWAY_GAME_TIMEOUT", cfg.GameTimeout},
+		{"GATEWAY_PROFILE_TIMEOUT", cfg.ProfileTimeout},
+		{"GATEWAY_CHAT_TIMEOUT", cfg.ChatTimeout},
 		{"GATEWAY_HEALTH_TIMEOUT", cfg.HealthTimeout},
 	} {
 		if timeout.value >= cfg.WriteTimeout {
